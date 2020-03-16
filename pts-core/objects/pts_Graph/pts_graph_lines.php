@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2019, Phoronix Media
+	Copyright (C) 2008 - 2019, Michael Larabel
 	pts_LineGraph.php: The line graph object that extends pts_Graph.php.
 
 	This program is free software; you can redistribute it and/or modify
@@ -39,10 +39,25 @@ class pts_graph_lines extends pts_graph_core
 					echo $val;
 				}
 				*/
+				$values = null;
 
-				$values = pts_strings::comma_explode($buffer_item->get_result_value());
+				if(isset($extra_attributes['graph_raw_values']) && $extra_attributes['graph_raw_values'])
+				{
+					$values = pts_strings::colon_explode($buffer_item->get_result_raw());
+					$raw_values = $values;
+					if(empty($values))
+					{
+						$values = null;
+					}
+				}
+
+				if($values == null)
+				{
+					$values = pts_strings::comma_explode($buffer_item->get_result_value());
+					$raw_values = pts_strings::comma_explode($buffer_item->get_result_raw());
+				}
 				$buffer_item->reset_result_value($values);
-				$buffer_item->reset_raw_value(pts_strings::comma_explode($buffer_item->get_result_raw()));
+				$buffer_item->reset_raw_value($raw_values);
 				$max_count = max($max_count, count($values));
 			}
 		}
@@ -57,7 +72,7 @@ class pts_graph_lines extends pts_graph_core
 		$this->i['display_select_identifiers'] = false;
 		$this->i['hide_graph_identifiers'] = !isset($extra_attributes['force_tracking_line_graph']) || !$extra_attributes['force_tracking_line_graph'];
 
-		// XXX removed on 20 January from here: $this->is_multi_way_comparison &&
+		// XXX removed on 20 January from here: $this->i['is_multi_way_comparison'] &&
 		if(isset($extra_attributes['force_tracking_line_graph']) && $extra_attributes['force_tracking_line_graph'] && is_array($this->results))
 		{
 			// need to do compacting here
@@ -100,7 +115,7 @@ class pts_graph_lines extends pts_graph_core
 
 			if($this->i['identifier_size'] <= $this->i['min_identifier_size'])
 			{
-				list($text_width, $text_height) = pts_svg_dom::estimate_text_dimensions($longest_string, $this->i['min_identifier_size'] + 0.5);
+				list($text_width, $text_height) = pts_svg_dom::estimate_text_dimensions($longest_string, $this->i['min_identifier_size'] + 1);
 				$this->i['bottom_offset'] += $text_width;
 				$this->update_graph_dimensions($this->i['graph_width'], $this->i['graph_height'] + $text_width);
 
@@ -113,28 +128,49 @@ class pts_graph_lines extends pts_graph_core
 		}
 
 		$max_value = 0;
+		$min_value = -1;
 		foreach($this->test_result->test_result_buffer->buffer_items as &$buffer_item)
 		{
 			if(!is_array($buffer_item->get_result_value()))
 			{
 				$max_value = max($max_value,  $buffer_item->get_result_value());
+				if($min_value == -1)
+					$min_value = $max_value;
+				$min_value = min($min_value,  $buffer_item->get_result_value());
 			}
 			else
 			{
 				$max_value = max($max_value,  max($buffer_item->get_result_value()));
+				if($min_value == -1)
+					$min_value = $max_value;
+				$min_value = min($min_value,  min($buffer_item->get_result_value()));
 			}
 		}
 
-		if($this->graph_y_title == 'Percent' && $max_value < 100 && $max_value > 80)
+		if($this->i['graph_y_title'] == 'Percent' && $max_value < 100 && $max_value > 80)
 		{
 			$this->i['graph_max_value'] = 120;
 			$this->i['mark_count'] = 6;
 		}
 		else
 		{
-			$max_value *= 1.25; // leave room at top of graph
-			$this->i['graph_max_value'] = round($max_value, $max_value < 10 ? 1 : 0);
-			$this->i['graph_max_value'] = round(ceil($this->i['graph_max_value'] / $this->i['mark_count']), (0 - strlen($this->i['graph_max_value']) + 2)) * $this->i['mark_count'];
+			if($max_value < 10)
+			{
+				$this->i['graph_max_value'] = max($this->i['graph_max_value'], $max_value) * 1.25; // leave room at top of graph
+				$this->i['graph_max_value'] += $this->i['graph_max_value'] % $this->i['mark_count'];
+			}
+			else
+			{
+				$max_value = max($this->i['graph_max_value'], $max_value) * 1.2; // leave room at top of graph
+				$this->i['graph_max_value'] = round($max_value, $max_value < 10 ? 1 : 0);
+				$this->i['graph_max_value'] = round(ceil($this->i['graph_max_value'] / $this->i['mark_count']), (0 - strlen($this->i['graph_max_value']) + 2)) * $this->i['mark_count'];
+				if($min_value > 20)
+				{
+					// Adjust bottom of graph to make it fit nicer on display
+					$this->i['graph_min_value'] = floor($min_value * 0.95);
+					$this->i['graph_max_value'] += $this->i['graph_min_value'] % $this->i['mark_count'];
+				}
+			}
 		}
 	}
 	protected function render_graph_identifiers()
@@ -284,7 +320,7 @@ class pts_graph_lines extends pts_graph_core
 
 		$min_value = min($data_set);
 		$max_value = max($data_set);
-		$avg_value = array_sum($data_set) / count($data_set);
+		$avg_value = pts_math::arithmetic_mean($data_set);
 
 		return array($min_value, $avg_value, $max_value);
 	}
@@ -317,7 +353,7 @@ class pts_graph_lines extends pts_graph_core
 				$std_error = isset($raw_array[$i]) ? pts_math::standard_error(pts_strings::colon_explode($raw_array[$i])) : 0;
 				$data_string = $identifier . ': ' . $value;
 
-				$value_plot_top = $this->i['graph_top_end'] + 1 - ($this->i['graph_max_value'] == 0 ? 0 : round(($value / $this->i['graph_max_value']) * ($this->i['graph_top_end'] - $this->i['top_start'])));
+				$value_plot_top = $this->i['graph_top_end'] + 1 - ($this->i['graph_max_value'] == 0 ? 0 : round((($value - $this->i['graph_min_value']) / ($this->i['graph_max_value'] - $this->i['graph_min_value'])) * ($this->i['graph_top_end'] - $this->i['top_start'])));
 				$px_from_left = round($this->i['left_start'] + ($this->i['identifier_width'] * ($i + (count($this->graph_identifiers) > 1 ? 1 : 0))));
 
 				if($px_from_left > $this->i['graph_left_end'])
@@ -416,7 +452,7 @@ class pts_graph_lines extends pts_graph_core
 		}
 
 		$this->i['key_line_height'] = 16;
-		$this->i['key_longest_string_width'] = self::text_string_width($this->test_result->test_result_buffer->get_longest_identifier(), self::$c['size']['key']);
+		$this->i['key_longest_string_width'] = self::text_string_width($this->test_result->test_result_buffer->get_longest_identifier(), self::$c['size']['key']) + 6;
 
 		$item_width_spacing = 32;
 		$this->i['key_item_width'] = $this->i['key_longest_string_width'] + $this->get_stat_word_width() * 3 + $item_width_spacing;

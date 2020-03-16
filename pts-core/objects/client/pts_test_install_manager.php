@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2010 - 2016, Phoronix Media
-	Copyright (C) 2010 - 2016, Michael Larabel
+	Copyright (C) 2010 - 2018, Phoronix Media
+	Copyright (C) 2010 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -52,14 +52,14 @@ class pts_test_install_manager
 
 		return $added;
 	}
-	public function generate_download_file_lists()
+	public function generate_download_file_lists($do_file_checks = true)
 	{
 		pts_client::$display->test_install_progress_start('Determining File Requirements');
 		$test_count = count($this->tests_to_install);
 
 		foreach($this->tests_to_install as $i => &$test_install_request)
 		{
-			$test_install_request->generate_download_object_list();
+			$test_install_request->generate_download_object_list($do_file_checks);
 			pts_client::$display->test_install_progress_update(($i / $test_count));
 		}
 		pts_client::$display->test_install_progress_completed();

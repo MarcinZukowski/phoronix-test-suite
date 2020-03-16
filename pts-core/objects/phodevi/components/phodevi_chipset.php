@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2018, Phoronix Media
+	Copyright (C) 2008 - 2018, Michael Larabel
 	phodevi_chipset.php: The PTS Device Interface object for the system chipset
 
 	This program is free software; you can redistribute it and/or modify
@@ -23,16 +23,11 @@
 
 class phodevi_chipset extends phodevi_device_interface
 {
-	public static function read_property($identifier)
+	public static function properties()
 	{
-		switch($identifier)
-		{
-			case 'identifier':
-				$property = new phodevi_device_property('chipset_string', phodevi::smart_caching);
-				break;
-		}
-
-		return $property;
+		return array(
+			'identifier' => new phodevi_device_property('chipset_string', phodevi::smart_caching)
+			);
 	}
 	public static function chipset_string()
 	{
@@ -58,17 +53,7 @@ class phodevi_chipset extends phodevi_device_interface
 		}
 		else if(phodevi::is_windows())
 		{
-			$info = phodevi_windows_parser::read_cpuz('Northbridge', null);
-
-			if($info != null)
-			{
-				if(($e = strpos($info, 'rev')) !== false)
-				{
-					$info = substr($info, 0, $e);
-				}
-
-				$info = trim($info);
-			}
+			// TODO XXX figure out
 		}
 		else if(phodevi::is_solaris())
 		{
@@ -81,6 +66,10 @@ class phodevi_chipset extends phodevi_device_interface
 			$info = phodevi_solaris_parser::read_hal_property($vendor_possible_udis, 'info.vendor');
 
 			// TODO: Northbridge and Southbridge Detection For Solaris
+		}
+		else if(phodevi::is_bsd())
+		{
+			$info = phodevi_bsd_parser::read_pciconf_by_class('bridge');
 		}
 		else if(phodevi::is_linux() || phodevi::is_hurd())
 		{

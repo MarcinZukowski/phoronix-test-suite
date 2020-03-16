@@ -37,6 +37,14 @@
 			<PackageName>libpng</PackageName>
 		</Package>
 		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>expat</PackageName>
+		</Package>
+		<Package>
+			<GenericName>nasm</GenericName>
+			<PackageName>nasm</PackageName>
+		</Package>
+		<Package>
 			<GenericName>openssl-development</GenericName>
 			<PackageName>openssl</PackageName>
 		</Package>
@@ -62,7 +70,11 @@
 		</Package>
 		<Package>
 			<GenericName>java</GenericName>
-			<PackageName>openjdk6</PackageName>
+			<PackageName>openjdk8</PackageName>
+		</Package>
+		<Package>
+			<GenericName>maven</GenericName>
+			<PackageName>maven</PackageName>
 		</Package>
 		<Package>
 			<GenericName>portaudio-development</GenericName>
@@ -179,6 +191,10 @@
 		<Package>
 			<GenericName>git</GenericName>
 			<PackageName>git-core</PackageName>
+		</Package>
+		<Package>
+			<GenericName>node-npm</GenericName>
+			<PackageName>npm</PackageName>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

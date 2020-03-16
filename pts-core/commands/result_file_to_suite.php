@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2018, Phoronix Media
+	Copyright (C) 2008 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ class result_file_to_suite implements pts_option_interface
 			$result_file = $r[0];
 		}
 
-		$suite_name = pts_user_io::prompt_user_input('Enter name of suite');
+		$suite_name = pts_user_io::prompt_user_input('Enter name of suite to be created');
 		$suite_test_type = pts_user_io::prompt_text_menu('Select test type', pts_types::subsystem_targets());
 		$suite_maintainer = pts_user_io::prompt_user_input('Enter suite maintainer name');
 		$suite_description = pts_user_io::prompt_user_input('Enter suite description');
@@ -64,10 +64,6 @@ class result_file_to_suite implements pts_option_interface
 		{
 			echo PHP_EOL . PHP_EOL . 'Saved -- to run this suite, type: phoronix-test-suite benchmark ' . $new_suite->get_identifier() . PHP_EOL . PHP_EOL;
 		}
-	}
-	public static function invalid_command($passed_args = null)
-	{
-		pts_tests::recently_saved_results();
 	}
 }
 

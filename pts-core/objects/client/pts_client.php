@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2017, Phoronix Media
-	Copyright (C) 2008 - 2017, Michael Larabel
+	Copyright (C) 2008 - 2019, Phoronix Media
+	Copyright (C) 2008 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -24,12 +24,19 @@ class pts_client
 {
 	public static $display = false;
 	public static $pts_logger = false;
-	private static $current_command = null;
+	public static $web_result_viewer_active = false;
+	public static $has_used_modern_result_viewer = false;
+	public static $last_browser_launch_time = 0;
+	public static $last_browser_duration = 0;
+	public static $last_result_view_url = null;
 	protected static $lock_pointers = null;
-	private static $forked_pids = array();
 	protected static $phoromatic_servers = array();
 	protected static $debug_mode = false;
 	protected static $full_output = false;
+	protected static $override_pts_env_vars = array();
+	protected static $sent_command = null;
+	private static $current_command = null;
+	private static $forked_pids = array();
 
 	public static function create_lock($lock_file)
 	{
@@ -45,7 +52,26 @@ class pts_client
 
 		self::$lock_pointers[$lock_file] = fopen($lock_file, 'w');
 		chmod($lock_file, 0644);
-		return self::$lock_pointers[$lock_file] != false && flock(self::$lock_pointers[$lock_file], LOCK_EX | LOCK_NB);
+		return self::$lock_pointers[$lock_file] != false && (phodevi::is_windows() || flock(self::$lock_pointers[$lock_file], LOCK_EX | LOCK_NB));
+	}
+	public static function possible_sub_commands()
+	{
+		static $options = null;
+
+		if(empty($options))
+		{
+			$options = array();
+			foreach(pts_file_io::glob(PTS_COMMAND_PATH . '*.php') as $option_php)
+			{
+				$name = str_replace('_', '-', basename($option_php, '.php'));
+				if(!in_array(pts_strings::first_in_string($name, '-'), array('dump', 'debug', 'task')))
+				{
+					$options[] = $name;
+				}
+			}
+		}
+
+		return $options;
 	}
 	public static function is_locked($lock_file)
 	{
@@ -75,6 +101,7 @@ class pts_client
 	public static function init()
 	{
 		pts_core::init();
+		pts_define('PTS_COMMAND_PATH', PTS_CORE_PATH . 'commands/');
 
 		if(defined('QUICK_START') && QUICK_START)
 		{
@@ -101,14 +128,14 @@ class pts_client
 		}
 
 		self::core_storage_init_process();
-
-		if(!is_file(PTS_TEMP_STORAGE))
+		$p = pts_config::read_path_config('PhoronixTestSuite/Options/Installation/EnvironmentDirectory', '~/.phoronix-test-suite/installed-tests/');
+		if(phodevi::is_windows())
 		{
-			self::build_temp_cache();
+			$p = str_replace('/', DIRECTORY_SEPARATOR, $p);
 		}
+		pts_define('PTS_TEST_INSTALL_DEFAULT_PATH', $p);
 
-		pts_define('PTS_TEST_INSTALL_DEFAULT_PATH', pts_strings::parse_for_home_directory(pts_config::read_user_config('PhoronixTestSuite/Options/Installation/EnvironmentDirectory', '~/.phoronix-test-suite/installed-tests/')));
-		pts_define('PTS_SAVE_RESULTS_PATH', pts_strings::parse_for_home_directory(pts_config::read_user_config('PhoronixTestSuite/Options/Testing/ResultsDirectory', '~/.phoronix-test-suite/test-results/')));
+		pts_define('PTS_SAVE_RESULTS_PATH', pts_config::read_path_config('PhoronixTestSuite/Options/Testing/ResultsDirectory', '~/.phoronix-test-suite/test-results/'));
 		self::extended_init_process();
 
 		$openbenchmarking = pts_storage_object::read_from_file(PTS_CORE_STORAGE, 'openbenchmarking');
@@ -128,8 +155,8 @@ class pts_client
 		$directory_check = array(
 			PTS_TEST_INSTALL_DEFAULT_PATH,
 			PTS_SAVE_RESULTS_PATH,
-			PTS_MODULE_LOCAL_PATH,
-			PTS_MODULE_DATA_PATH,
+			pts_module::module_local_path(),
+			pts_module::module_data_path(),
 			PTS_DOWNLOAD_CACHE_PATH,
 			PTS_OPENBENCHMARKING_SCRATCH_PATH,
 			PTS_TEST_PROFILE_PATH,
@@ -141,6 +168,41 @@ class pts_client
 		foreach($directory_check as $dir)
 		{
 			pts_file_io::mkdir($dir);
+		}
+
+		// Copy files (without overwrite) from internal OB program cache if present, to help those without Internet
+		if(!phodevi::is_windows())
+		{
+			if(PTS_INTERNAL_OB_CACHE && is_dir(PTS_INTERNAL_OB_CACHE . 'test-profiles'))
+			{
+				pts_file_io::copy(PTS_INTERNAL_OB_CACHE . 'test-profiles', PTS_TEST_PROFILE_PATH, true);
+			}
+			if(PTS_INTERNAL_OB_CACHE && is_dir(PTS_INTERNAL_OB_CACHE . 'test-suites'))
+			{
+				pts_file_io::copy(PTS_INTERNAL_OB_CACHE . 'test-suites', PTS_TEST_SUITE_PATH, true);
+			}
+			if(PTS_INTERNAL_OB_CACHE && is_dir(PTS_INTERNAL_OB_CACHE . 'openbenchmarking.org'))
+			{
+				pts_file_io::copy(PTS_INTERNAL_OB_CACHE . 'openbenchmarking.org', PTS_OPENBENCHMARKING_SCRATCH_PATH, true);
+
+				if(!pts_network::internet_support_available())
+				{
+					// Only overwrite the OB index files if it's newer
+					foreach(pts_file_io::glob(PTS_INTERNAL_OB_CACHE . 'openbenchmarking.org/*.index') as $cache_index_file)
+					{
+						$index_file_name = basename($cache_index_file);
+						if(is_file(PTS_OPENBENCHMARKING_SCRATCH_PATH . $index_file_name))
+						{
+							$current_version = pts_openbenchmarking::get_generated_time_from_index(PTS_OPENBENCHMARKING_SCRATCH_PATH . $index_file_name);
+							$cached_version = pts_openbenchmarking::get_generated_time_from_index($cache_index_file);
+							if($cached_version > $current_version)
+							{
+								copy($cache_index_file, PTS_OPENBENCHMARKING_SCRATCH_PATH . $index_file_name);
+							}
+						}
+					}
+				}
+			}
 		}
 
 		// Setup ~/.phoronix-test-suite/xsl/
@@ -157,7 +219,7 @@ class pts_client
 	{
 		// Process initially called when PTS starts up
 		// Check for modules to auto-load from the configuration file
-		$load_modules = pts_config::read_user_config('PhoronixTestSuite/Options/Modules/LoadModules', null);
+		$load_modules = pts_config::read_user_config('PhoronixTestSuite/Options/Modules/AutoLoadModules', null);
 
 		if(!empty($load_modules))
 		{
@@ -239,12 +301,25 @@ class pts_client
 
 		if($env_variables == null)
 		{
+			$physical_cores = phodevi::read_property('cpu', 'physical-core-count');
+			$i = 0;
+			do
+			{
+				$i++;
+				$nearest_cube = pow($i, 3);
+			}
+			while($physical_cores >= pow(($i + 1), 3));
+
 			$env_variables = array(
 			'PTS_VERSION' => PTS_VERSION,
 			'PTS_CODENAME' => PTS_CODENAME,
 			'PTS_DIR' => PTS_PATH,
+			'PTS_LAUNCHER' => getenv('PTS_LAUNCHER'),
 			'PHP_BIN' => PHP_BIN,
 			'NUM_CPU_CORES' => phodevi::read_property('cpu', 'core-count'),
+			'OMP_NUM_THREADS' => phodevi::read_property('cpu', 'core-count'),
+			'NUM_CPU_PHYSICAL_CORES' => $physical_cores,
+			'NUM_CPU_PHYSICAL_CORES_CUBE' => $nearest_cube,
 			'NUM_CPU_NODES' => phodevi::read_property('cpu', 'node-count'),
 			'NUM_CPU_JOBS' => (phodevi::read_property('cpu', 'core-count') * 2),
 			'SYS_MEMORY' => phodevi::read_property('memory', 'capacity'),
@@ -257,19 +332,42 @@ class pts_client
 			'OPERATING_SYSTEM' => phodevi::read_property('system', 'vendor-identifier'),
 			'OS_VERSION' => phodevi::read_property('system', 'os-version'),
 			'OS_ARCH' => phodevi::read_property('system', 'kernel-architecture'),
-			'OS_TYPE' => phodevi::operating_system(),
+			'OS_TYPE' => phodevi::os_under_test(),
 			'THIS_RUN_TIME' => PTS_INIT_TIME,
-			'DEBUG_REAL_HOME' => pts_core::user_home_directory()
+			'DEBUG_REAL_HOME' => pts_core::user_home_directory(),
+			'DEBUG_PATH' => pts_client::get_path(),
+			'SYSTEM_TYPE_ID' => phodevi_base::determine_system_type(phodevi::system_hardware(), phodevi::system_software()),
+			'SYSTEM_TYPE' => phodevi_base::system_type_to_string(phodevi_base::determine_system_type(phodevi::system_hardware(), phodevi::system_software())),
+			'TERMINAL_WIDTH' => pts_client::terminal_width(),
+			'C_CXX_FLAGS_DEFAULT' => '-O3 -march=native' // mostly for future use
 			);
 
-			if(!pts_client::executable_in_path('cc') && pts_client::executable_in_path('gcc') && getenv('CC') == false)
+			if(!pts_client::executable_in_path('cc') && getenv('CC') == false)
 			{
 				// This helps some test profiles build correctly if they don't do a cc check internally
-				$env_variables['CC'] = 'gcc';
+				if(pts_client::executable_in_path('gcc'))
+				{
+					$env_variables['CC'] = 'gcc';
+				}
+				else if(pts_client::executable_in_path('clang'))
+				{
+					$env_variables['CC'] = 'clang';
+				}
 			}
 		}
 
-		return $env_variables;
+		return array_merge($env_variables, self::$override_pts_env_vars);
+	}
+	public static function override_pts_env_var($name, $value)
+	{
+		self::$override_pts_env_vars[$name] = $value;
+	}
+	public static function unset_pts_env_var_override($name)
+	{
+		if(isset(self::$override_pts_env_vars[$name]))
+		{
+			unset(self::$override_pts_env_vars[$name]);
+		}
 	}
 	public static function test_install_root_path()
 	{
@@ -280,10 +378,22 @@ class pts_client
 		else
 		{
 			if(!defined('PTS_TEST_INSTALL_DEFAULT_PATH'))
-				pts_define('PTS_TEST_INSTALL_DEFAULT_PATH', pts_strings::parse_for_home_directory(pts_config::read_user_config('PhoronixTestSuite/Options/Installation/EnvironmentDirectory', '~/.phoronix-test-suite/installed-tests/')));
+			{
+				$p = pts_config::read_path_config('PhoronixTestSuite/Options/Installation/EnvironmentDirectory', '~/.phoronix-test-suite/installed-tests/');
+				if(phodevi::is_windows())
+				{
+					$p = str_replace('/', DIRECTORY_SEPARATOR, $p);
+				}
+
+				pts_define('PTS_TEST_INSTALL_DEFAULT_PATH', $p);
+			}
 
 			return PTS_TEST_INSTALL_DEFAULT_PATH;
 		}
+	}
+	public static function download_cache_path()
+	{
+		return pts_strings::add_trailing_slash(pts_config::read_path_config('PhoronixTestSuite/Options/Installation/CacheDirectory', PTS_DOWNLOAD_CACHE_PATH));
 	}
 	public static function user_run_save_variables()
 	{
@@ -310,7 +420,39 @@ class pts_client
 	}
 	public static function supports_colored_text_output()
 	{
-		return (function_exists('posix_isatty') && posix_isatty(STDOUT)) || (PTS_IS_CLIENT && getenv('LS_COLORS'));
+		static $supports = -1;
+
+		if($supports == -1)
+		{
+			$config_color_option = pts_config::read_user_config('PhoronixTestSuite/Options/General/ColoredConsole', 'AUTO');
+
+			switch(strtoupper($config_color_option))
+			{
+				case 'TRUE':
+					$supported = true;
+					break;
+				case 'FALSE':
+					$supported = false;
+					break;
+				case 'AUTO':
+				default:
+					$supported = (function_exists('posix_isatty') && posix_isatty(STDOUT)) || (PTS_IS_CLIENT && (getenv('LS_COLORS') || getenv('CLICOLOR'))) || (phodevi::is_windows() && strstr(phodevi::read_property('system', 'operating-system'), 'Windows 8') === false && strstr(phodevi::read_property('system', 'operating-system'), 'Windows 7') === false);
+					break;
+			}
+			$supports = $supported;
+		}
+
+		return $supports;
+	}
+	public static function hex_color_to_string($hex)
+	{
+		$colors = array();
+		list($colors['red'], $colors['green'], $colors['blue']) = sscanf($hex, "#%02x%02x%02x");
+		if($colors['red'] > 240 && $colors['green'] > 210)
+		{
+			return 'yellow'; // this works for Arm color, etc
+		}
+		return array_search(max($colors), $colors);
 	}
 	public static function cli_colored_text($str, $color, $bold = false)
 	{
@@ -324,9 +466,12 @@ class pts_client
 			'black' => $attribute . ';30',
 			'gray' => '1;30', // gray not bold doesn't look good in all consoles
 			'blue' => $attribute . ';34',
+			'magenta' => $attribute . ';35',
 			'green' => $attribute . ';32',
+			'yellow' => $attribute . ';33',
 			'red' => $attribute . ';31',
 			'cyan' => $attribute . ';36',
+			'white' => $attribute . ';37',
 			);
 
 		if(!isset($colors[$color]))
@@ -344,6 +489,24 @@ class pts_client
 		}
 
 		return "\033[1m$str\033[0m";
+	}
+	public static function cli_just_italic($str)
+	{
+		if(!self::supports_colored_text_output())
+		{
+			return $str;
+		}
+
+		return "\e[3m$str\e[0m";
+	}
+	public static function cli_just_underline($str)
+	{
+		if(!self::supports_colored_text_output())
+		{
+			return $str;
+		}
+
+		return "\e[4m$str\e[0m";
 	}
 	public static function save_test_result($save_to = null, $save_results = null, $render_graphs = true, $result_identifier = null)
 	{
@@ -374,7 +537,8 @@ class pts_client
 			if($result_identifier != null && pts_config::read_bool_config('PhoronixTestSuite/Options/Testing/SaveSystemLogs', 'TRUE'))
 			{
 				// Save verbose system information here
-				$system_log_dir = $save_to_dir . '/system-logs/' . $result_identifier . '/';
+				//$system_log_dir = $result_file->get_system_log_dir($result_identifier, false);
+				$system_log_dir = $save_to_dir . '/system-logs/' . pts_strings::simplify_string_for_file_handling($result_identifier) . '/';
 				pts_file_io::mkdir($system_log_dir, 0777, true);
 
 				// Backup system files
@@ -450,7 +614,7 @@ class pts_client
 
 					if(($command_bin = pts_client::executable_in_path($command[0])))
 					{
-						$cmd_output = shell_exec('cd ' . dirname($command_bin) . ' && ./' . $command_string . ' 2>&1');
+						$cmd_output = shell_exec('cd "' . dirname($command_bin) . '" && ./' . $command_string . ' 2>&1');
 
 						if(strlen($cmd_output) > 900000)
 						{
@@ -591,20 +755,6 @@ class pts_client
 			}
 		}
 	}
-	private static function build_temp_cache()
-	{
-		$pso = pts_storage_object::recover_from_file(PTS_TEMP_STORAGE);
-
-		if($pso == false)
-		{
-			$pso = new pts_storage_object();
-		}
-
-		$pso->add_object('environmental_variables_for_modules', pts_module_manager::modules_environmental_variables());
-		$pso->add_object('command_alias_list', pts_documentation::client_commands_aliases());
-
-		$pso->save_to_file(PTS_TEMP_STORAGE);
-	}
 	private static function core_storage_init_process()
 	{
 		$pso = pts_storage_object::recover_from_file(PTS_CORE_STORAGE);
@@ -685,12 +835,13 @@ class pts_client
 
 		if(FIRST_RUN_ON_PTS_UPGRADE)
 		{
-			if($requested_gsid == false)
+			if($requested_gsid == false && pts_network::internet_support_available())
 			{
 				pts_openbenchmarking_client::update_gsid();
 			}
 
-			pts_client::build_temp_cache();
+			$pso->add_object('environmental_variables_for_modules', pts_module_manager::modules_environmental_variables());
+			$pso->add_object('command_alias_list', pts_documentation::client_commands_aliases());
 		}
 		$pso->add_object('last_core_version', PTS_CORE_VERSION); // PTS version last run
 		$pso->add_object('last_php_version', PTS_PHP_VERSION); // PHP version last run
@@ -704,6 +855,7 @@ class pts_client
 		pts_define('IS_FIRST_RUN_TODAY', (substr($last_run, 0, 10) != date('Y-m-d')));
 		$pso->add_object('last_run_time', date('Y-m-d H:i:s')); // Time PTS was last run
 		pts_define('TIME_SINCE_LAST_RUN', ceil((time() - strtotime($last_run)) / 60)); // TIME_SINCE_LAST_RUN is in minutes
+		pts_define('TIME_PTS_LAUNCHED', time());
 
 		// User Agreement Checking
 		$agreement_cs = $pso->read_object('user_agreement_cs');
@@ -754,54 +906,87 @@ class pts_client
 	}
 	public static function available_phoromatic_servers()
 	{
-		$phoromatic_servers = array();
-		$possible_servers = pts_network::find_zeroconf_phoromatic_servers(true);
-
-		foreach(self::$phoromatic_servers as $server)
+		if(defined('PHOROMATIC_SERVER') && PHOROMATIC_SERVER)
 		{
-			$possible_servers[] = array($server['ip'], $server['http_port']);
+			return array();
 		}
 
-		$user_config_phoromatic_servers = pts_config::read_user_config('PhoronixTestSuite/Options/General/PhoromaticServers', '');
-		foreach(explode(',', $user_config_phoromatic_servers) as $static_server)
-		{
-			$static_server = explode(':', $static_server);
-			if(count($static_server) == 2)
-			{
-				$possible_servers[] = array($static_server[0], $static_server[1]);
-			}
-		}
+		static $last_phoromatic_scan = 0;
+		static $phoromatic_servers = false;
 
-		if(is_file(PTS_USER_PATH . 'phoromatic-servers'))
+		// Cache the Phoromatic Server information for 2 minutes since could be expensive to compute
+		if($phoromatic_servers === false || $last_phoromatic_scan < (time() - 120))
 		{
-			$phoromatic_servers_file = pts_file_io::file_get_contents(PTS_USER_PATH . 'phoromatic-servers');
-			foreach(explode(PHP_EOL, $phoromatic_servers_file) as $ps_file_line)
+			$last_phoromatic_scan = time();
+			$phoromatic_servers = array();
+			$possible_servers = pts_network::find_zeroconf_phoromatic_servers(true);
+
+			foreach(self::$phoromatic_servers as $server)
 			{
-				$ps_file_line = explode(':', trim($ps_file_line));
-				if(count($ps_file_line) == 2 && ip2long($ps_file_line[0]) !== false && is_numeric($ps_file_line) && $ps_file_line > 100)
+				if(pts_network::get_local_ip() != $server['ip'])
 				{
-					$possible_servers[] = array($ps_file_line[0], $ps_file_line[1]);
+					$possible_servers[] = array($server['ip'], $server['http_port']);
 				}
 			}
-		}
 
-		foreach($possible_servers as $possible_server)
-		{
-			// possible_server[0] is the Phoromatic Server IP
-			// possible_server[1] is the Phoromatic Server HTTP PORT
-
-			if(in_array($possible_server[0], array_keys($phoromatic_servers)))
+			$user_config_phoromatic_servers = pts_config::read_user_config('PhoronixTestSuite/Options/General/PhoromaticServers', '');
+			foreach(explode(',', $user_config_phoromatic_servers) as $static_server)
 			{
-				continue;
+				$static_server = explode(':', $static_server);
+				if(count($static_server) == 2)
+				{
+					$possible_servers[] = array($static_server[0], $static_server[1]);
+				}
 			}
 
-			$server_response = pts_network::http_get_contents('http://' . $possible_server[0] . ':' . $possible_server[1] . '/server.php', false, false, 3);
-			if(stripos($server_response, 'Phoromatic') !== false)
+			if(is_file(PTS_USER_PATH . 'phoromatic-servers'))
 			{
-				trigger_error('Phoromatic Server Auto-Detected At: ' . $possible_server[0] . ':' . $possible_server[1], E_USER_NOTICE);
-				$phoromatic_servers[$possible_server[0]] = array('ip' => $possible_server[0], 'http_port' => $possible_server[1]);
+				$phoromatic_servers_file = pts_file_io::file_get_contents(PTS_USER_PATH . 'phoromatic-servers');
+				foreach(explode(PHP_EOL, $phoromatic_servers_file) as $ps_file_line)
+				{
+					$ps_file_line = explode(':', trim($ps_file_line));
+					if(count($ps_file_line) == 2 && ip2long($ps_file_line[0]) !== false && is_numeric($ps_file_line) && $ps_file_line > 100)
+					{
+						$possible_servers[] = array($ps_file_line[0], $ps_file_line[1]);
+					}
+				}
 			}
 
+			// OpenBenchmarking.org relay zero conf
+			if(pts_network::internet_support_available())
+			{
+				$ob_relay = pts_openbenchmarking::possible_phoromatic_servers();
+				foreach($ob_relay as $s)
+				{
+					$local_ip = pts_network::get_local_ip();
+					$local_ip_segments = explode('.', $local_ip);
+					$s_segments = explode('.', $s[0]);
+
+					if($s_segments[0] == $local_ip_segments[0] && $s_segments[1] == $local_ip_segments[1])
+					{
+						$possible_servers[] = array($s[0], $s[1]);
+					}
+				}
+			}
+
+			foreach($possible_servers as $possible_server)
+			{
+				// possible_server[0] is the Phoromatic Server IP
+				// possible_server[1] is the Phoromatic Server HTTP PORT
+
+				if(in_array($possible_server[0], array_keys($phoromatic_servers)) || pts_network::get_local_ip() ==  $possible_server[0])
+				{
+					continue;
+				}
+
+				$server_response = pts_network::http_get_contents('http://' . $possible_server[0] . ':' . $possible_server[1] . '/server.php', false, false, 3);
+				if(stripos($server_response, 'Phoromatic') !== false)
+				{
+					trigger_error('Phoromatic Server Auto-Detected At: ' . $possible_server[0] . ':' . $possible_server[1], E_USER_NOTICE);
+					$phoromatic_servers[$possible_server[0]] = array('ip' => $possible_server[0], 'http_port' => $possible_server[1]);
+				}
+
+			}
 		}
 
 		return $phoromatic_servers;
@@ -849,10 +1034,17 @@ class pts_client
 			if($prompt_in_method == false || $usage_reporting == -1)
 			{
 				pts_client::$display->generic_heading('User Agreement');
-				echo wordwrap($user_agreement, 65);
-				$agree = pts_user_io::prompt_bool_input('Do you agree to these terms and wish to proceed', true);
+				echo wordwrap($user_agreement, (pts_client::terminal_width() - 2));
+				$agree = pts_user_io::prompt_bool_input('Do you agree to these terms and wish to proceed', -1);
 
-				$usage_reporting = $agree ? pts_user_io::prompt_bool_input('Enable anonymous usage / statistics reporting', true) : -1;
+				if(!pts_openbenchmarking::ob_upload_support_available())
+				{
+					$usage_reporting = false;
+				}
+				else
+				{
+					$usage_reporting = $agree ? pts_user_io::prompt_bool_input('Enable anonymous usage / statistics reporting', -1) : -1;
+				}
 			}
 
 			if($agree)
@@ -868,6 +1060,11 @@ class pts_client
 
 			pts_config::user_config_generate(array(
 				'PhoronixTestSuite/Options/OpenBenchmarking/AnonymousUsageReporting' => pts_config::bool_to_string($usage_reporting)));
+		}
+
+		if(PTS_IS_CLIENT && getenv('PTS_SILENT_MODE') != 1)
+		{
+			pts_external_dependencies::startup_handler();
 		}
 	}
 	public static function swap_variables($user_str, $replace_call)
@@ -958,6 +1155,14 @@ class pts_client
 
 		if(pts_client::is_debug_mode())
 		{
+			if(($x = strpos($message, ': ')) !== false)
+			{
+				$message = pts_client::cli_colored_text(substr($message, 0, $x + 1), 'yellow', true) . pts_client::cli_colored_text(substr($message, $x + 1), 'yellow', false);
+			}
+			else
+			{
+				$message = pts_client::cli_colored_text($message, 'yellow', false);
+			}
 			pts_client::$display->test_run_instance_error($message);
 			$reported = true;
 		}
@@ -988,6 +1193,8 @@ class pts_client
 			$result_file = new pts_result_file($test_results_identifier);
 		}
 
+		$result_file->avoid_duplicate_identifiers();
+
 		$generated_graphs = array();
 		$generated_graph_tables = false;
 
@@ -1009,9 +1216,9 @@ class pts_client
 			$chart->renderChart($save_to_dir . '/result-graphs/systems.BILDE_EXTENSION');
 			unset($chart);
 
-			if($intent && is_dir($save_to_dir . '/system-logs/'))
+			if($intent && is_dir($result_file->get_system_log_dir()))
 			{
-				$chart = new pts_DetailedSystemComponentTable($result_file, $save_to_dir . '/system-logs/', $intent);
+				$chart = new pts_DetailedSystemComponentTable($result_file, $result_file->get_system_log_dir(), $intent);
 
 				if($chart)
 				{
@@ -1076,30 +1283,30 @@ class pts_client
 		if($save_to_dir)
 		{
 			$graph = new pts_OverviewGraph($result_file);
+			$rendered = $graph->renderGraph();
 
-			if($graph->doSkipGraph() == false)
+			// Check to see if skip_graph was realized during the rendering process
+			if($rendered)
 			{
-				$graph->renderGraph();
-
-				// Check to see if skip_graph was realized during the rendering process
-				if($graph->doSkipGraph() == false)
-				{
-					$graph->svg_dom->output($save_to_dir . '/result-graphs/visualize.BILDE_EXTENSION');
-				}
+				$graph->svg_dom->output($save_to_dir . '/result-graphs/visualize.BILDE_EXTENSION');
 			}
 			unset($graph);
 
-			$graph = new pts_RadarOverviewGraph($result_file);
-
-			if($graph->doSkipGraph() == false)
+			if($result_file->get_system_count() == 2)
 			{
-				$graph->renderGraph();
+				$graph = new pts_graph_run_vs_run($result_file);
+			}
+			else
+			{
+				$graph = new pts_graph_radar_chart($result_file);
+			}
 
-				// Check to see if skip_graph was realized during the rendering process
-				if($graph->doSkipGraph() == false)
-				{
-					$graph->svg_dom->output($save_to_dir . '/result-graphs/radar.BILDE_EXTENSION');
-				}
+			$rendered = $graph->renderGraph();
+
+			// Check to see if skip_graph was realized during the rendering process
+			if($rendered)
+			{
+				$graph->svg_dom->output($save_to_dir . '/result-graphs/radar.BILDE_EXTENSION');
 			}
 			unset($graph);
 		}
@@ -1177,7 +1384,7 @@ class pts_client
 		if($generated && $full_process_string)
 		{
 			echo PHP_EOL . $full_process_string . PHP_EOL;
-			pts_client::display_web_page(PTS_SAVE_RESULTS_PATH . $result_file_identifier . '/index.html');
+			pts_client::display_result_view($result_file_identifier, false);
 		}
 
 		return $generated;
@@ -1260,16 +1467,11 @@ class pts_client
 					}
 					else
 					{
-						trigger_error('Phoronix Test Suite Argument Missing.', E_USER_ERROR);
+						trigger_error('Phoronix Test Suite Argument Missing', E_USER_ERROR);
 					}
 
-					echo PHP_EOL . pts_client::cli_just_bold('CORRECT SYNTAX:') . PHP_EOL . 'phoronix-test-suite ' . str_replace('_', '-', $command_alias) . ' ' . implode(' ', $argument_checks) . PHP_EOL . PHP_EOL;
-
-					if(method_exists($command, 'invalid_command'))
-					{
-						call_user_func_array(array($command, 'invalid_command'), $pass_args);
-						echo PHP_EOL;
-					}
+					echo PHP_EOL . pts_client::cli_just_bold('CORRECT SYNTAX:') . PHP_EOL . 'phoronix-test-suite ' . str_replace('_', '-', $command_alias) . ' ' . pts_client::cli_just_italic(implode(' ', $argument_checks)) . PHP_EOL . PHP_EOL;
+					pts_tests::invalid_command_helper($pass_args, $argument_checks);
 
 					return false;
 				}
@@ -1309,6 +1511,56 @@ class pts_client
 
 		pts_module_manager::module_process('__post_option_process', $command);
 	}
+	public static function get_sent_command()
+	{
+		return self::$sent_command;
+	}
+	public static function handle_sent_command(&$sent_command, &$argv, &$argc)
+	{
+		self::$sent_command = $sent_command;
+		if(is_file(PTS_PATH . 'pts-core/commands/' . $sent_command . '.php') == false)
+		{
+			$replaced = false;
+
+			if(pts_module::valid_run_command($sent_command))
+			{
+				$replaced = true;
+			}
+			else if(isset($argv[1]) && strpos($argv[1], '.openbenchmarking') !== false && is_readable($argv[1]))
+			{
+				$sent_command = 'openbenchmarking_launcher';
+				$argv[2] = $argv[1];
+				$argc = 3;
+				$replaced = true;
+			}
+			else
+			{
+				$aliases = pts_storage_object::read_from_file(PTS_CORE_STORAGE, 'command_alias_list');
+				if($aliases == null)
+				{
+					$aliases = pts_documentation::client_commands_aliases();
+				}
+
+				if(isset($aliases[$sent_command]))
+				{
+					$sent_command = $aliases[$sent_command];
+					$replaced = true;
+				}
+			}
+
+			if($replaced == false)
+			{
+				// Show help command, since there are no valid commands
+				$sent_command = 'help';
+			}
+		}
+		else
+		{
+			$replaced = true;
+		}
+
+		return $replaced;
+	}
 	public static function current_command()
 	{
 		return self::$current_command;
@@ -1317,21 +1569,32 @@ class pts_client
 	{
 		static $terminal_width = null;
 
-		if($terminal_width == null)
+		// XXX As of PTS 8.6.1, no longer caching this as not sure it makes sense to do... So be more responsive about terminal resizing
+		// Or at least cache on Windows where powershell calls can take longer
+		if(!phodevi::is_windows() || $terminal_width == null)
 		{
-			$chars = 80;
+			$terminal_width = 80;
 
-			if(pts_client::read_env('TERMINAL_WIDTH') != false && is_numeric(pts_client::read_env('TERMINAL_WIDTH')) >= 80)
+			if(phodevi::is_windows())
 			{
-					$terminal_width = pts_client::read_env('TERMINAL_WIDTH');
+				// Powershell defaults to 120
+				$terminal_width = trim(shell_exec('powershell "(get-host).UI.RawUI.MaxWindowSize.width"'));
+			}
+			else if(pts_client::read_env('TERMINAL_WIDTH') != false && is_numeric(pts_client::read_env('TERMINAL_WIDTH')) >= 20)
+			{
+				$terminal_width = pts_client::read_env('TERMINAL_WIDTH');
 			}
 			else if(pts_client::executable_in_path('stty'))
 			{
 				$terminal_width = explode(' ', trim(shell_exec('stty size 2>&1')));
 
-				if(count($terminal_width) == 2 && is_numeric($terminal_width[1]) && $terminal_width[1] >= 80)
+				if(count($terminal_width) == 2 && is_numeric($terminal_width[1]) && $terminal_width[1] >= 40)
 				{
-					$chars = $terminal_width[1];
+					$terminal_width = $terminal_width[1];
+				}
+				else
+				{
+					$terminal_width = 80;
 				}
 			}
 			else if(pts_client::executable_in_path('tput'))
@@ -1340,22 +1603,62 @@ class pts_client
 
 				if(is_numeric($terminal_width) && $terminal_width > 1)
 				{
-					$chars = $terminal_width;
+					$terminal_width = $terminal_width;
+				}
+				else
+				{
+					$terminal_width = 80;
 				}
 			}
-
-			$terminal_width = $chars;
 		}
 
 		return $terminal_width;
 	}
+	public static function terminal_height()
+	{
+		static $terminal_height = null;
+
+		if($terminal_height == null)
+		{
+			$terminal_height = 12;
+
+			if(phodevi::is_windows())
+			{
+				$terminal_height = trim(shell_exec('powershell "(get-host).UI.RawUI.MaxWindowSize.height"'));
+			}
+			else if(pts_client::executable_in_path('stty'))
+			{
+				$th = explode(' ', trim(shell_exec('stty size 2>&1')));
+
+				if(count($th) == 2 && is_numeric($th[0]) && $th[0] >= 1)
+				{
+					$terminal_height = $th[1];
+				}
+			}
+			else if(pts_client::executable_in_path('tput'))
+			{
+				$th = trim(shell_exec('tput lines 2>&1'));
+
+				if(is_numeric($th) && $th > 1)
+				{
+					$terminal_height = $th;
+				}
+			}
+		}
+
+		return $terminal_height;
+	}
 	public static function is_process_running($process)
 	{
-		if(phodevi::is_linux())
+		$running = null;
+		if(phodevi::is_linux() && pts_client::executable_in_path('ps'))
 		{
 			// Checks if process is running on the system
-			$running = shell_exec('ps -C ' . strtolower($process) . ' 2>&1');
-			$running = trim(str_replace(array('PID', 'TTY', 'TIME', 'CMD'), '', $running));
+			$ps = shell_exec('ps -C ' . strtolower($process) . ' 2>&1');
+			if(strpos($ps, 'unrecognized option') === false)
+			{
+				$running = trim(str_replace(array('PID', 'TTY', 'TIME', 'CMD'), '', $ps));
+			}
 		}
 		else if(phodevi::is_solaris())
 		{
@@ -1367,11 +1670,10 @@ class pts_client
 		{
 			// Checks if process is running on the system
 			$ps = shell_exec('ps -ax 2>&1');
-			$running = strpos($ps, ' ' . strtolower($process)) != false ? 'TRUE' : null;
-		}
-		else
-		{
-			$running = null;
+			if(strpos($ps, 'unrecognized option') === false)
+			{
+				$running = strpos($ps, strtolower($process)) != false ? 'TRUE' : null;
+			}
 		}
 
 		return !empty($running);
@@ -1411,9 +1713,14 @@ class pts_client
 
 		return $temp_file;
 	}
-	public static function create_temporary_directory($prefix = null)
+	public static function create_temporary_directory($prefix = null, $large_file_support = false)
 	{
 		$tmpdir = pts_client::temporary_directory();
+		if($large_file_support && disk_free_space(PTS_USER_PATH) > disk_free_space($tmpdir))
+		{
+			$tmpdir = PTS_USER_PATH . DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR;
+			pts_file_io::mkdir($tmpdir);
+		}
 
 		do
 		{
@@ -1448,20 +1755,97 @@ class pts_client
 
 		foreach(array_keys($extra_vars) as $key)
 		{
-			$var_string .= 'export ' . $key . '=' . str_replace(' ', '\ ', trim($extra_vars[$key])) . ';';
+			if(phodevi::is_windows())
+			{
+				$v = str_replace('"', '', trim($extra_vars[$key]));
+				if(substr($v, -1) == '\\')
+				{ echo $v;
+					$v = substr($v, 0, -1);
+				}
+				$var_string .= 'setx ' . $key . ' "' . $v . '";';
+			}
+			else
+			{
+				$var_string .= 'export ' . $key . '="' . str_replace(' ', '\ ', trim($extra_vars[$key])) . '";';
+			}
 		}
-
 		$var_string .= ' ';
 
 		return shell_exec($var_string . $exec);
+	}
+	public static function get_path()
+	{
+		$path = pts_client::read_env('PATH');
+		if(empty($path) || $path == ':')
+		{
+			if(phodevi::is_windows())
+			{
+				$path = 'C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Users\\' . getenv('USERNAME') . '\AppData\Local\Microsoft\WindowsApps;';
+			}
+			else
+			{
+				$path = '/bin:/usr/sbin:/usr/bin:/usr/local/bin:/usr/pkg/bin:/usr/games';
+			}
+		}
+		if(phodevi::is_windows())
+		{
+			$possible_paths_to_add = array('C:\Users\\' . getenv('USERNAME') . '\AppData\Local\Programs\Python\Python36-32',
+				'C:\Users\\' . getenv('USERNAME') . '\AppData\Local\Programs\Python\Python37',
+				'C:\Users\\' . getenv('USERNAME') . '\AppData\Local\Programs\Python\Python38',
+				'C:\Python27',
+				'C:\Go\bin',
+				'C:\Strawberry\perl\bin',
+				pts_file_io::glob('C:\*\NVIDIA*\NVSMI'), // NVIDIA SMI
+				pts_file_io::glob('C:\*\R\R-*\bin'),
+				pts_file_io::glob('C:\*\Java\jdk-*\bin'), pts_file_io::glob('C:\*\ojdkbuild\java-*\bin'), pts_file_io::glob('C:\*\Java\jre-*\bin'),
+				'C:\cygwin64\bin',
+				pts_file_io::glob('C:\Program*\LLVM\bin'),
+				pts_file_io::glob('C:\Program*\CMake\bin'),
+				pts_file_io::glob('C:\Program*\WinRAR')
+				);
+			foreach($possible_paths_to_add as $path_check)
+			{
+				if(is_array($path_check))
+				{
+					// if it's an array it came from glob so no need to re-check if is_dir()
+					foreach($path_check as $sub_check)
+					{
+						if(strpos($path, $sub_check) == false)
+						{
+							$path .= ';' . $sub_check;
+						}
+					}
+				}
+				else if(is_dir($path_check) && strpos($path, $path_check) == false)
+				{
+					$path .= ';' . $path_check;
+				}
+			}
+		}
+		else if(phodevi::is_linux())
+		{
+			// Fedora OpenMPI path not often in PATH by default
+			$d = '/usr/lib64/openmpi/bin';
+			if(is_dir($d) && strpos($path, $d) === false)
+			{
+				$path .= ':' . $d;
+			}
+		}
+
+		return $path;
+	}
+	public static function get_path_separator()
+	{
+		return phodevi::is_windows() ? ';' : ':';
 	}
 	public static function executable_in_path($executable, $ignore_paths_with = false)
 	{
 		static $cache = null;
 
-		if(!isset($cache[$executable]) || $ignore_paths_with)
+		if(!isset($cache[$executable]) || empty($cache[$executable]) || $ignore_paths_with)
 		{
-			$paths = pts_strings::trim_explode((phodevi::is_windows() ? ';' : ':'), (($path = pts_client::read_env('PATH')) == false ? '/usr/local/bin:/usr/bin:/usr/sbin:/bin' : $path));
+			$path = pts_client::get_path();
+			$paths = pts_strings::trim_explode(pts_client::get_path_separator(), $path);
 			$executable_path = false;
 
 			foreach($paths as $path)
@@ -1488,14 +1872,84 @@ class pts_client
 
 			$cache[$executable] = $executable_path;
 		}
+		if($cache[$executable] == false && phodevi::is_windows() && substr($executable, -4) != '.exe')
+		{
+			// See if there is .exe match most likely, e.g. Java, Python, etc.
+			$cache[$executable] = pts_client::executable_in_path($executable . '.exe');
+		}
 
 		return $cache[$executable];
 	}
+	public static function display_result_view($result_file, $auto_open = false, $prompt_text = null)
+	{
+		if(defined('PHOROMATIC_PROCESS'))
+		{
+			return false;
+		}
+		if(TIME_PTS_LAUNCHED > (time() - 6))
+		{
+			// Avoid a race condition on start-up if the dynamic result viewer PHP server isn't yet active
+			// and running a command like 'refresh-graphs' where you may be viewing a result right away
+			sleep(5);
+		}
+
+		if(!is_object($result_file))
+		{
+			$result_file = new pts_result_file($result_file);
+		}
+
+		if(!phodevi::is_display_server_active())
+		{
+			$prompt_text = !empty($prompt_text) ? $prompt_text : 'Do you want to view the test results?';
+			$txt_results = $auto_open || pts_user_io::prompt_bool_input($prompt_text, true);
+			if($txt_results)
+			{
+				echo pts_result_file_output::result_file_to_text($result_file, pts_client::terminal_width());
+			}
+		}
+		else
+		{
+			$dynamic_urls_to_try = array();
+			if(pts_client::$web_result_viewer_active)
+			{
+				$dynamic_urls_to_try[] = 'http://localhost:' . pts_client::$web_result_viewer_active;
+				$dynamic_urls_to_try[] = 'http://127.0.0.1:' . pts_client::$web_result_viewer_active;
+			}
+			if(($restored_port = pts_storage_object::read_from_file(PTS_CORE_STORAGE, 'last_web_result_viewer_active_port')) != false && is_numeric($restored_port) && $restored_port > 20)
+			{
+				$dynamic_urls_to_try[] = 'http://localhost:' . $restored_port;
+				$dynamic_urls_to_try[] = 'http://127.0.0.1:' . $restored_port;
+			}
+
+			foreach($dynamic_urls_to_try as $base_url)
+			{
+				if(pts_network::http_get_contents($base_url . '/index.php?PTS', false, false, false, false, 2) == 'PTS')
+				{
+					pts_client::$has_used_modern_result_viewer = true;
+					pts_client::$last_result_view_url = $base_url . '/result/' . $result_file->get_identifier();
+					$length_browser_open = pts_client::display_web_page(pts_client::$last_result_view_url, $prompt_text, true, $auto_open);
+					return true;
+				}
+			}
+
+			// Fallback to old result viewer
+			if($result_file->get_file_location() != null)
+			{
+				$index_html = dirname($result_file->get_file_location()) . '/index.html';
+			}
+			else
+			{
+				$index_html = PTS_SAVE_RESULTS_PATH . $result_file->get_identifier() . '/index.html';
+			}
+
+			pts_client::display_web_page($index_html, $prompt_text, true, $auto_open);
+		}
+	}
 	public static function display_web_page($URL, $alt_text = null, $default_open = true, $auto_open = false)
 	{
-		if((pts_client::read_env('DISPLAY') == false && pts_client::read_env('WAYLAND_DISPLAY') == false && phodevi::is_windows() == false && phodevi::is_macosx() == false) || defined('PHOROMATIC_PROCESS'))
+		if(!phodevi::is_display_server_active() || defined('PHOROMATIC_PROCESS'))
 		{
-			return;
+			return -1;
 		}
 
 		if($auto_open == false)
@@ -1522,8 +1976,9 @@ class pts_client
 				else if(phodevi::is_windows())
 				{
 					$windows_browsers = array(
+						'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
 						'C:\Program Files (x86)\Mozilla Firefox\firefox.exe',
-						'C:\Program Files\Internet Explorer\iexplore.exe'
+						//'C:\Program Files\internet explorer\iexplore.exe'
 						);
 
 					foreach($windows_browsers as $browser_test)
@@ -1535,14 +1990,38 @@ class pts_client
 						}
 					}
 
+					if(!empty($browser))
+					{
+						$browser = escapeshellarg($browser);
+					}
+
 					if(substr($URL, 0, 1) == '\\')
 					{
 						$URL = 'file:///C:' . str_replace('/', '\\', $URL);
 					}
+					else if(substr($URL, 0, 2) == 'C:')
+					{
+						$URL = 'file:///' . str_replace('//', '/', str_replace('\\', '/', $URL));
+					}
+
+
+					pts_client::$last_browser_launch_time = time();
+					$launch_time = microtime(true);
+					if(empty($browser))
+					{
+						// should allow the browser to be opened in Edge
+						shell_exec('start ' . $URL . '');
+					}
+					else
+					{
+						shell_exec($browser . ' "' . $URL . '"');
+					}
+					pts_client::$last_browser_duration = microtime(true) - $launch_time;
+					return -1;
 				}
 				else
 				{
-					$possible_browsers = array('firefox', 'mozilla', 'x-www-browser', 'iceweasel', 'konqueror', 'epiphany', 'google-chrome', 'midori', 'epiphany-browser', 'epiphany', 'midori', 'qupzilla', 'open', 'xdg-open');
+					$possible_browsers = array('x-www-browser', 'google-chrome', 'chromium', 'firefox', 'mozilla', 'iceweasel', 'konqueror', 'epiphany', 'midori', 'epiphany-browser', 'epiphany', 'falkon', 'qupzilla', 'open', 'xdg-open');
 
 					foreach($possible_browsers as &$b)
 					{
@@ -1557,13 +2036,21 @@ class pts_client
 
 			if($browser != null)
 			{
+				$launch_time = microtime(true);
+				pts_client::$last_browser_launch_time = time();
 				shell_exec($browser . ' "' . $URL . '" 2> /dev/null &');
+
+				// return how long the browser was opened, useful for trying to see if launched to an existing open browser or process stayed while viewing results
+				pts_client::$last_browser_duration = microtime(true) - $launch_time;
+				return pts_client::$last_browser_duration;
 			}
 			else
 			{
 				echo PHP_EOL . 'No Web Browser Found.' . PHP_EOL;
 			}
 		}
+
+		return -1;
 	}
 	public static function cache_hardware_calls()
 	{
@@ -1575,32 +2062,15 @@ class pts_client
 	{
 		phodevi::system_software(true);
 	}
-	public static function remove_saved_result_file($identifier)
-	{
-		pts_file_io::delete(PTS_SAVE_RESULTS_PATH . $identifier, null, true);
-	}
-	public static function saved_test_results()
-	{
-		$results = array();
-		$ignore_ids = array();
-
-		foreach(pts_file_io::glob(PTS_SAVE_RESULTS_PATH . '*/composite.xml') as $result_file)
-		{
-			$identifier = basename(dirname($result_file));
-
-			if(!in_array($identifier, $ignore_ids))
-			{
-				$results[] = $identifier;
-			}
-		}
-
-		return $results;
-	}
-	public static function timed_function($function, $function_parameters, $time, $continue_while_true_function = null, $continue_while_true_function_parameters)
+	public static function timed_function($function, $function_parameters, $time, $continue_while_true_function = false, $continue_while_true_function_parameters = null)
 	{
 		if(($time < 0.5 && $time != -1) || $time > 300)
 		{
 			return;
+		}
+		if($continue_while_true_function && $continue_while_true_function_parameters === null)
+		{
+			$continue_while_true_function_parameters = array();
 		}
 
 		if(function_exists('pcntl_fork') && function_exists('posix_setsid'))
@@ -1739,6 +2209,12 @@ class pts_client
 				if(($s = strpos($error_string, 'Undefined ')) !== false && ($x = strpos($error_string, ': ', $s)) !== false)
 				{
 					$error_string = 'Undefined: ' . substr($error_string, ($x + 2));
+				}
+				else if(strpos($error_string, 'Unable to find the socket transport') !== false || strpos($error_string, 'SSL: Connection reset') !== false)
+				{
+					$error_string = 'PHP OpenSSL support is needed to handle HTTPS downloads.';
+					$error_file = null;
+					$error_line = null;
 				}
 				else
 				{

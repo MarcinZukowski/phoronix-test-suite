@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2017, Phoronix Media
-	Copyright (C) 2009 - 2017, Michael Larabel
+	Copyright (C) 2009 - 2020, Phoronix Media
+	Copyright (C) 2009 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -42,8 +42,14 @@ class pts_test_result_buffer_item
 	{
 		$this->result_identifier = $identifier;
 	}
-	public function reset_result_value($value)
+	public function reset_result_value($value, $set_precision = true)
 	{
+		if(is_numeric($this->result_final) && $set_precision && is_numeric($value))
+		{
+			$precision = pts_math::get_precision($this->result_final);
+			$value = round($value, ($precision < 2 ? 2 : $precision));
+		}
+
 		$this->result_final = $value;
 	}
 	public function reset_raw_value($value)
@@ -53,6 +59,10 @@ class pts_test_result_buffer_item
 	public function get_result_identifier()
 	{
 		return $this->result_identifier;
+	}
+	public function get_result_identifier_simplified()
+	{
+		return pts_strings::simplify_string_for_file_handling($this->result_identifier);
 	}
 	public function get_result_value()
 	{
@@ -69,6 +79,18 @@ class pts_test_result_buffer_item
 	public function get_result_raw()
 	{
 		return $this->result_raw;
+	}
+	public function get_result_raw_array()
+	{
+		return explode(':', $this->result_raw);
+	}
+	public function get_sample_count()
+	{
+		return count($this->get_result_raw_array());
+	}
+	public function get_result_json_raw()
+	{
+		return $this->result_json;
 	}
 	public function get_result_json()
 	{
@@ -87,6 +109,13 @@ class pts_test_result_buffer_item
 	{
 		$a = $a->get_result_value();
 		$b = $b->get_result_value();
+		if(strpos($a, ',') != false && strpos($b, ',') != false)
+		{
+			$a = explode(',', $a);
+			$b = explode(',', $b);
+			$a = pts_math::arithmetic_mean($a);
+			$b = pts_math::arithmetic_mean($b);
+		}
 
 		if($a == $b)
 		{

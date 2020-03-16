@@ -18,7 +18,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 * Author:  Olivier PLATHEY                                                     *
 *******************************************************************************/
 
-// Modifications by Michael Larabel 2015-2016 for PTS adaptation of FPDF
+// Modifications by Michael Larabel 2015-2019 for PTS adaptation of FPDF
 
 define('FPDF_VERSION','1.7');
 
@@ -29,6 +29,7 @@ var $n;                  // current object number
 var $offsets;            // array of object offsets
 var $buffer;             // buffer holding in-memory PDF
 var $pages;              // array containing pages
+var $PageInfo = array();
 var $state;              // current document state
 var $compress;           // compression flag
 var $k;                  // scale factor (number of points in user unit)
@@ -179,7 +180,6 @@ function SetMargins($left, $top, $right=null)
 		$right = $left;
 	$this->rMargin = $right;
 }
-
 function SetLeftMargin($margin)
 {
 	// Set left margin
@@ -497,7 +497,7 @@ function AddFont($family, $style='', $file='')
 	$this->fonts[$fontkey] = $info;
 }
 
-function SetFont($family, $style='', $size=0)
+function SetFont($family = '', $style='', $size=0)
 {
 	// Select a font; size given in points
 	if($family=='')
@@ -881,7 +881,6 @@ function Ln($h=null)
 	else
 		$this->y += $h;
 }
-
 function Image($file, $x=null, $y=null, $w=0, $h=0, $type='', $link='')
 {
 	// Put an image on the page
@@ -1837,7 +1836,6 @@ function _putresources()
 	$this->_out('>>');
 	$this->_out('endobj');
 }
-
 function _putinfo()
 {
 	$this->_out('/Producer '.$this->_textstring('FPDF '.FPDF_VERSION));
@@ -1919,6 +1917,168 @@ function _enddoc()
 	$this->_out($o);
 	$this->_out('%%EOF');
 	$this->state = 3;
+}
+// Multi-Cell Table: http://www.fpdf.org/en/script/script3.php
+function Row($data, $widths, &$row_num = -1, $hints = null)
+{
+	$this->SetFont('', '', isset($hints[0]) && $hints[0] == 'small' ? 7 : 9);
+	//Calculate the height of the row
+	$nb = 0;
+	for($i=0;$i<count($data);$i++)
+	{
+		$nb=max($nb,$this->NbLines($widths[$i],$data[$i]));
+	}
+	$h=(isset($hints[0]) && $hints[0] == 'small' ? 4 : 5)*$nb;
+	//Issue a page break first if needed
+		$this->CheckPageBreak($h);
+
+	static $toggle_bg = true;
+	//Draw the cells of the row
+	if($row_num === 0)
+	{
+		$this->SetTextColor(255, 255, 255);
+		$this->SetFillColor(0, 0, 0);
+		$this->SetFont('', 'B', 0);
+	}
+
+	$row_is_divider = false;
+	for($i=0;$i<count($data);$i++)
+	{
+		$w=$widths[$i];
+		if($i == 0)
+		{
+			$this->SetFont('', 'B', 0);
+			$a = 'R';
+		}
+		else
+		{
+			if($i == 1 && $row_num !== 0)
+			{
+				$this->SetFont('', '', 0);
+			}
+			$a = 'L';
+		}
+		//Save the current position
+		$x=$this->GetX();
+		$y=$this->GetY();
+		//Draw the border
+		$did_reset_colors = false;
+		if($row_num !== 0)
+		{
+			if((isset($hints[$i]) && $hints[$i] == 'divide') || $row_is_divider)
+			{
+				$this->SetFillColor(139, 139, 139);
+				$row_is_divider = true;
+			}
+			else if($toggle_bg && isset($hints[$i]) && $hints[$i] != 'small')
+			{
+				$this->SetFillColor(212, 212, 212);
+			}
+			else
+			{
+				$this->SetFillColor(255, 255, 255);
+			}
+			if(isset($hints[$i]))
+			{
+				switch($hints[$i])
+				{
+					case 'green':
+						$this->SetFont('', 'B', 0);
+						$this->SetTextColor(0, 85, 0);
+						$did_reset_colors = true;
+						break;
+					case 'red':
+						$this->SetFont('', 'B', 0);
+						$this->SetTextColor(128, 0, 0);
+						$did_reset_colors = true;
+						break;
+					case 'divide':
+						$this->SetFont('', 'B', 0);
+						$this->SetTextColor(256, 256, 256);
+						$did_reset_colors = true;
+						break;
+				}
+			}
+		}
+		$this->Rect($x,$y,$w,$h, 'F');
+		//Print the text
+		$this->MultiCell($w,5,$data[$i],0,$a);
+		//Put the position to the right of the cell
+		$this->SetXY($x+$w,$y);
+
+		if($did_reset_colors)
+		{
+			$this->SetFont('', '', 0);
+			$this->SetTextColor(0, 0, 0);
+		}
+	}
+	if($row_num === 0 || $did_reset_colors)
+	{
+		$this->SetTextColor(0, 0, 0);
+		$this->SetFillColor(255, 255, 255);
+		$this->SetFont('', '', 0);
+	}
+
+	$toggle_bg = !isset($hints[$i]) || $hints[$i] != 'small' || !$toggle_bg;
+	//Go to the next line
+	$this->Ln($h);
+	$row_num++;
+}
+function CheckPageBreak($h)
+{
+	//If the height h would cause an overflow, add a new page immediately
+	if($this->GetY()+$h>$this->PageBreakTrigger - $h)
+		$this->AddPage($this->CurOrientation);
+}
+function NbLines($w,$txt)
+{
+    //Computes the number of lines a MultiCell of width w will take
+    $cw=&$this->CurrentFont['cw'];
+    if($w==0)
+        $w=$this->w-$this->rMargin-$this->x;
+    $wmax=($w-2*$this->cMargin)*1000/$this->FontSize;
+    $s=str_replace("\r",'',$txt);
+    $nb=strlen($s);
+    if($nb>0 and $s[$nb-1]=="\n")
+        $nb--;
+    $sep=-1;
+    $i=0;
+    $j=0;
+    $l=0;
+    $nl=1;
+    while($i<$nb)
+    {
+        $c=$s[$i];
+        if($c=="\n")
+        {
+            $i++;
+            $sep=-1;
+            $j=$i;
+            $l=0;
+            $nl++;
+            continue;
+        }
+        if($c==' ')
+            $sep=$i;
+        $l+=$cw[$c];
+        if($l>$wmax)
+        {
+            if($sep==-1)
+            {
+                if($i==$j)
+                    $i++;
+            }
+            else
+                $i=$sep+1;
+            $sep=-1;
+            $j=$i;
+            $l=0;
+            $nl++;
+        }
+        else
+            $i++;
+    }
+    return $nl;
 }
 // End of class
 }

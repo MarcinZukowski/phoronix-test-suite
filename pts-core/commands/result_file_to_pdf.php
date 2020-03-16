@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2016, Phoronix Media
-	Copyright (C) 2009 - 2016, Michael Larabel
+	Copyright (C) 2009 - 2020, Phoronix Media
+	Copyright (C) 2009 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -33,10 +33,10 @@ class result_file_to_pdf implements pts_option_interface
 	}
 	public static function run($r)
 	{
-		if(!function_exists('getimagesizefromstring'))
+		if(!pts_svg_dom_gd::is_supported())
 		{
-			echo 'PHP GD support is required for this command.' . PHP_EOL . PHP_EOL;
-			return false;
+			echo pts_client::cli_just_bold('PHP GD support and TTF support are required for the PDF output if wanting to display the benchmark result graphs.') . PHP_EOL . PHP_EOL;
+			//return false;
 		}
 
 		$_REQUEST['force_format'] = 'PNG'; // Force to PNG renderer
@@ -47,11 +47,7 @@ class result_file_to_pdf implements pts_option_interface
 		$result_file = new pts_result_file($r[0]);
 		$pdf_file = pts_core::user_home_directory() . $r[0] . '.pdf';
 		$pdf_output = pts_result_file_output::result_file_to_pdf($result_file, $pdf_file, 'F');
-		echo PHP_EOL . 'Saved To: ' . $pdf_file . PHP_EOL;
-	}
-	public static function invalid_command($passed_args = null)
-	{
-		pts_tests::recently_saved_results();
+		echo PHP_EOL . pts_client::cli_just_bold('Saved To: ') . $pdf_file . PHP_EOL;
 	}
 }
 

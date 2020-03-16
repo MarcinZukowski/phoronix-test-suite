@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2010 - 2017, Phoronix Media
-	Copyright (C) 2010 - 2017, Michael Larabel
+	Copyright (C) 2010 - 2019, Phoronix Media
+	Copyright (C) 2010 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -23,12 +23,12 @@
 class help implements pts_option_interface
 {
 	const doc_section = 'Other';
-	const doc_description = 'This option will display the list of available Phoronix Test Suite commands.';
+	const doc_description = 'This option will display a list of available Phoronix Test Suite commands and possible parameter types.';
 
 	public static function run($r)
 	{
 		echo PHP_EOL . pts_client::cli_colored_text(pts_core::program_title(true), 'green', true) . PHP_EOL . PHP_EOL;
-		echo pts_documentation::basic_description() . PHP_EOL . PHP_EOL . 'View the included PDF / HTML documentation or visit http://www.phoronix-test-suite.com/ for full details.' . PHP_EOL;
+		echo pts_documentation::basic_description() . PHP_EOL . PHP_EOL . 'View the included documentation or visit https://www.phoronix-test-suite.com/ for full details.' . PHP_EOL;
 		$options = pts_documentation::client_commands_array();
 
 		foreach($options as $section => &$contents)

@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2013, Phoronix Media
-	Copyright (C) 2008 - 2013, Michael Larabel
+	Copyright (C) 2008 - 2018, Phoronix Media
+	Copyright (C) 2008 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -48,6 +48,12 @@ class pts_file_io
 		// Compared to the normal PHP file_get_contents, trim the file as a string when acquired
 		return trim(file_get_contents($filename, $flags, $context));
 	}
+	public static function file_get_contents_first_line($filename, $flags = 0, $context = null)
+	{
+		// Compared to the normal PHP file_get_contents, trim the file as a string when acquired
+		$f = trim(file_get_contents($filename, $flags, $context));
+		return substr($f, 0, strpos($f, "\n"));
+	}
 	public static function delete($object, $ignore_files = null, $remove_root_directory = false)
 	{
 		// Delete files and/or directories
@@ -84,6 +90,8 @@ class pts_file_io
 		{
 			rmdir($object);
 		}
+
+		return true;
 	}
 	public static function array_filesize($r)
 	{
@@ -99,13 +107,20 @@ class pts_file_io
 
 		return $filesize;
 	}
-	public static function copy($source, $dest)
+	public static function copy($source, $dest, $no_overwrite = false)
 	{
 		$success = false;
 
 		if(is_file($source))
 		{
-			$success = copy($source, $dest);
+			if($no_overwrite && is_file($dest))
+			{
+				$success = false;
+			}
+			else
+			{
+				$success = copy($source, $dest);
+			}
 		}
 		else if(is_link($source))
 		{
@@ -125,7 +140,7 @@ class pts_file_io
 				{
 					continue;
 				}
-				self::copy($source . '/' . $entry, $dest . '/' . $entry);
+				self::copy($source . '/' . $entry, $dest . '/' . $entry, $no_overwrite);
 			}
 
 			$dir->close();
@@ -133,6 +148,24 @@ class pts_file_io
 		}
 
 		return $success;
+	}
+	public static function recursively_find_files_in_directory($dir, &$found_files, $file_extension = null)
+	{
+		$tree = glob(rtrim($dir, '/') . '/*');
+		if(is_array($tree))
+		{
+			foreach($tree as $file)
+			{
+				if(is_dir($file))
+				{
+					self::recursively_find_files_in_directory($file, $found_files, $file_extension);
+				}
+				else if(is_file($file) && ($file_extension == null || substr($file, 0 - strlen($file_extension)) == $file_extension))
+				{
+					$found_files[] = $file;
+				}
+			}
+		}
 	}
 }
 

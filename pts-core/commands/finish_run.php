@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2016, Phoronix Media
-	Copyright (C) 2009 - 2016, Michael Larabel
+	Copyright (C) 2009 - 2020, Phoronix Media
+	Copyright (C) 2009 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -28,12 +28,8 @@ class finish_run implements pts_option_interface
 	public static function argument_checks()
 	{
 		return array(
-		new pts_argument_check(0, array('pts_result_file', 'is_test_result_file'), null)
+		new pts_argument_check(0, array('pts_results', 'is_saved_result_file'), null)
 		);
-	}
-	public static function invalid_command($passed_args = null)
-	{
-		pts_tests::invalid_command_helper($passed_args);
 	}
 	public static function run($args)
 	{

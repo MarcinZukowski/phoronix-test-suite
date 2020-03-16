@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2014 - 2015, Phoronix Media
-	Copyright (C) 2014 - 2015, Michael Larabel
+	Copyright (C) 2014 - 2018, Phoronix Media
+	Copyright (C) 2014 - 2018, Michael Larabel
 	pts-web-socket: A simple WebSocket implementation, inspired by designs of https://github.com/varspool/Wrench and http://code.google.com/p/phpwebsocket/
 
 	This program is free software; you can redistribute it and/or modify
@@ -34,7 +34,7 @@ class pts_phoromatic_event_server
 				{
 					shell_exec($etherwake . ' ' . $mac . ' 2>&1');
 					$sent_wol_request = true;
-					sleep(5);
+					sleep(6);
 					break;
 				}
 			}
@@ -43,6 +43,7 @@ class pts_phoromatic_event_server
 		{
 			pts_network::send_wol_packet($ip, $mac);
 			$sent_wol_request = true;
+			sleep(6);
 		}
 
 		return $sent_wol_request;
@@ -113,7 +114,7 @@ class pts_phoromatic_event_server
 			if($is_first_run || $minute % 2 == 0)
 			{
 				// Check for systems to wake
-				$stmt = phoromatic_server::$db->prepare('SELECT LastCommunication, CurrentTask, SystemID, AccountID, NetworkMAC, LastIP, MaintenanceMode FROM phoromatic_systems WHERE State > 0 AND NetworkMAC NOT LIKE \'\' AND NetworkWakeOnLAN LIKE \'%g%\' ORDER BY LastCommunication DESC');
+				$stmt = phoromatic_server::$db->prepare('SELECT LastCommunication, CurrentTask, SystemID, AccountID, NetworkMAC, LastIP, MaintenanceMode FROM phoromatic_systems WHERE State > 0 AND NetworkMAC NOT LIKE \'\' ORDER BY LastCommunication DESC'); // dropped this after PTS 7.4 AND NetworkWakeOnLAN LIKE \'%g%\'
 				$result = $stmt ? $stmt->execute() : false;
 
 				while($result && $row = $result->fetchArray())
@@ -144,7 +145,7 @@ class pts_phoromatic_event_server
 					{
 						// System hasn't communicated in a number of minutes so it might be powered off
 
-						if(phoromatic_server::system_has_outstanding_jobs($row['AccountID'], $row['SystemID']) !== false)
+						if(phoromatic_server::system_has_outstanding_jobs($row['AccountID'], $row['SystemID'], 0, false) !== false)
 						{
 							// Make sure account has network WoL enabled
 							if($phoromatic_account_settings[$row['AccountID']]['NetworkPowerUpWhenNeeded'] == 1)
@@ -189,6 +190,15 @@ class pts_phoromatic_event_server
 						}
 						$systems_already_reported[$sys_hash] = time();
 					}
+				}
+			}
+			if($is_first_run || $last_ob_relay_ping < (time() - 86400))
+			{
+				$last_ob_relay_ping = time();
+				// Zeroconf via OpenBenchmarking.org
+				if(pts_config::read_user_config('PhoronixTestSuite/Options/Server/AdvertiseServiceOpenBenchmarkRelay', 'TRUE') && pts_network::internet_support_available())
+				{
+					pts_openbenchmarking::make_openbenchmarking_request('phoromatic_server_relay', array('local_ip' => pts_network::get_local_ip(), 'local_port' => getenv('PTS_WEB_PORT')));
 				}
 			}
 			phoromatic_server::close_database();

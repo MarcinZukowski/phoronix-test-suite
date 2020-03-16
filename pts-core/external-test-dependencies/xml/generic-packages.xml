@@ -38,6 +38,12 @@
 			<FileCheck>libglut.so.3, GL/glut.h</FileCheck>
 		</Package>
 		<Package>
+			<GenericName>vulkan-development</GenericName>
+			<Title>Vulkan Development</Title>
+			<PossibleNames>libvulkan-dev, vulkan-devel</PossibleNames>
+			<FileCheck>vulkan/vulkan.h, libvulkan.so.1</FileCheck>
+		</Package>
+		<Package>
 			<GenericName>csh</GenericName>
 			<Title>CSH</Title>
 			<PossibleNames>csh, tcsh</PossibleNames>
@@ -112,8 +118,20 @@
 		<Package>
 			<GenericName>java</GenericName>
 			<Title>Java Runtime Environment</Title>
-			<PossibleNames>java-openjdk, icedtea, java, sun-java</PossibleNames>
+			<PossibleNames>java-openjdk, java, sun-java</PossibleNames>
 			<FileCheck>java OR jvm OR /usr/lib64/jvm</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>maven</GenericName>
+			<Title>Apache Maven</Title>
+			<PossibleNames>maven</PossibleNames>
+			<FileCheck>maven OR mvn</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>meson</GenericName>
+			<Title>Meson Build System</Title>
+			<PossibleNames>meson</PossibleNames>
+			<FileCheck>meson</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>portaudio-development</GenericName>
@@ -230,6 +248,12 @@
 			<FileCheck>qmake OR qmake-qt4</FileCheck>
 		</Package>
 		<Package>
+			<GenericName>qt5-development</GenericName>
+			<Title>Qt5 Development Files</Title>
+			<PossibleNames>libqt5-dev, qt5-devel</PossibleNames>
+			<FileCheck>qmake</FileCheck>
+		</Package>
+		<Package>
 			<GenericName>autoconf</GenericName>
 			<Title>Autoconf</Title>
 			<PossibleNames>autoconf</PossibleNames>
@@ -239,7 +263,13 @@
 			<GenericName>libtool</GenericName>
 			<Title>Libtool</Title>
 			<PossibleNames>libtool</PossibleNames>
-			<FileCheck>libtool</FileCheck>
+			<FileCheck>libtool OR libtoolize</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>libevent</GenericName>
+			<Title>Libevent</Title>
+			<PossibleNames>libevent, libevent-dev</PossibleNames>
+			<FileCheck>event.h</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>popt</GenericName>
@@ -287,7 +317,7 @@
 			<GenericName>openmpi-development</GenericName>
 			<Title>OpenMPI</Title>
 			<PossibleNames>libopenmpi-dev, openmpi-bin</PossibleNames>
-			<FileCheck>openmpi/lib/libmpi.so OR mpirun OR mpirun.openmpi</FileCheck>
+			<FileCheck>openmpi/lib/libmpi.so OR mpirun.openmpi OR /usr/lib64/mpi OR /usr/include/openmpi</FileCheck>
 		</Package>
 
 		<Package>
@@ -324,7 +354,7 @@
 			<GenericName>python</GenericName>
 			<Title>Python</Title>
 			<PossibleNames>python</PossibleNames>
-			<FileCheck>python</FileCheck>
+			<FileCheck>python OR python3 OR python2</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>python-boost-development</GenericName>
@@ -349,6 +379,12 @@
 			<Title>Yasm Assembler</Title>
 			<PossibleNames>yasm</PossibleNames>
 			<FileCheck>yasm</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>nasm</GenericName>
+			<Title>Nasm Assembler</Title>
+			<PossibleNames>nasm</PossibleNames>
+			<FileCheck>nasm</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>lib3ds</GenericName>
@@ -393,6 +429,12 @@
 			<FileCheck>suitesparse/cs.h OR cs.h, libcxsparse.so</FileCheck>
 		</Package>
 		<Package>
+			<GenericName>rust</GenericName>
+			<Title>Rust</Title>
+			<PossibleNames>rust, rustc, cargo</PossibleNames>
+			<FileCheck>rustc, cargo</FileCheck>
+		</Package>
+		<Package>
 			<GenericName>dune</GenericName>
 			<Title>Distributed and Unified Numerics Environment</Title>
 			<PossibleNames>libdune-common-dev</PossibleNames>
@@ -435,6 +477,12 @@
 			<FileCheck>opencv/cv.h OR opencv2/core.hpp</FileCheck>
 		</Package>
 		<Package>
+			<GenericName>steam</GenericName>
+			<Title>Steam</Title>
+			<PossibleNames>steam</PossibleNames>
+			<FileCheck>steam</FileCheck>
+		</Package>
+		<Package>
                         <GenericName>perl-digest-md5</GenericName>
                         <Title>Perl interface to the MD5 Algorithm</Title>
                         <PossibleNames>perl-Digest-MD5, perl-Digest-Perl-MD5, libdigest-md5</PossibleNames>
@@ -451,6 +499,84 @@
 			<Title>Python Sklearn</Title>
 			<PossibleNames>python-sklearn</PossibleNames>
 			<FileCheck>/usr/lib/python2.7/dist-packages/scikit_learn-0.17.egg-info</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>V8</GenericName>
+			<Title>V8 JavaScript Engine</Title>
+			<PossibleNames>libv8-dev, v8</PossibleNames>
+			<FileCheck>v8.h, libv8.so</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>ruby</GenericName>
+			<Title>Ruby</Title>
+			<PossibleNames>ruby</PossibleNames>
+			<FileCheck>ruby</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<Title>Wine</Title>
+			<PossibleNames>wine</PossibleNames>
+			<FileCheck>wine</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>mongodb</GenericName>
+			<Title>MongoDB</Title>
+			<PossibleNames>mongodb</PossibleNames>
+			<FileCheck>mongo</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>node-npm</GenericName>
+			<Title>Node.js + NPM</Title>
+			<PossibleNames>npm, nodejs</PossibleNames>
+			<FileCheck>npm</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>expat</GenericName>
+			<Title>Expat XML Parser Library</Title>
+			<PossibleNames>libexpat1-dev, expat</PossibleNames>
+			<FileCheck>expat.h</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>hdf5</GenericName>
+			<Title>HDF5</Title>
+			<PossibleNames>libhdf5-dev, hdf5</PossibleNames>
+			<FileCheck>/usr/include/hdf5/ OR hdf5.h</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>libxml2</GenericName>
+			<Title>Libxml2</Title>
+			<PossibleNames>libxml2</PossibleNames>
+			<FileCheck>libxml2/libxml/parser.h</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>uuid</GenericName>
+			<Title>UUID</Title>
+			<PossibleNames>uuid-dev, libuuid-devel</PossibleNames>
+			<FileCheck>uuid/uuid.h</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>clang</GenericName>
+			<Title>LLVM Clang</Title>
+			<PossibleNames>clang</PossibleNames>
+			<FileCheck>clang</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>gflags</GenericName>
+			<Title>GFlags</Title>
+			<PossibleNames>gflags</PossibleNames>
+			<FileCheck>gflags/gflags.h</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>google-benchmark</GenericName>
+			<Title>Google Benchmark</Title>
+			<PossibleNames>libbenchmark-dev</PossibleNames>
+			<FileCheck>benchmark/benchmark.h</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>snappy</GenericName>
+			<Title>Snappy Compression</Title>
+			<PossibleNames>libsnappy-dev</PossibleNames>
+			<FileCheck>snappy.h</FileCheck>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2020, Phoronix Media
+	Copyright (C) 2008 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@ class pts_test_profile_parser
 	private $tp_extends;
 	protected $block_test_extension_support = false;
 	private $file_location = false;
+	public $no_fallbacks_on_null = false;
 
 	public function __construct($read = null, $normal_init = true)
 	{
@@ -168,7 +169,7 @@ class pts_test_profile_parser
 			}
 		}
 
-		if($r == null)
+		if($r == null && (!$this->no_fallbacks_on_null || $default_on_null == 'TRUE'))
 		{
 			$r = $default_on_null;
 		}
@@ -270,6 +271,10 @@ class pts_test_profile_parser
 	{
 		return $this->xg('TestSettings/Default/PostArguments');
 	}
+	public function get_identifier_simplified()
+	{
+		return pts_strings::simplify_string_for_file_handling($this->identifier);
+	}
 	public function get_identifier_base_name()
 	{
 		$identifier = basename($this->identifier);
@@ -293,6 +298,10 @@ class pts_test_profile_parser
 	}
 	public function get_times_to_run()
 	{
+		return $this->get_default_times_to_run();
+	}
+	public function get_default_times_to_run()
+	{
 		return $this->xg('TestInformation/TimesToRun', 3);
 	}
 	public function get_runs_to_ignore()
@@ -315,11 +324,32 @@ class pts_test_profile_parser
 	{
 		return trim(pts_strings::first_in_string($this->get_result_scale(), '|'));
 	}
-	public function get_result_scale_offset()
+	public function get_result_scale_shortened()
 	{
-		$scale_parts = explode('|', $this->get_result_scale());
+		$scale = $this->get_result_scale();
+		$shorten = array(
+			'Frames Per Second' => 'FPS',
+			' Per Second' => '/sec',
+			' Per Minute' => '/min',
+			'Nanoseconds/Operation' => 'ns/op',
+			'Nodes/second' => 'Nodes/s',
+			'Nodes/sec' => 'Nodes/s',
+			'Mbits/sec' => 'Mbits/s',
+			'MiB/second' => 'MiB/s',
+			'Milli-Seconds' => 'ms',
+			'Microseconds' => 'us',
+			'Request' => 'Req',
+			'Seconds' => 'sec',
+			' Per ' => '/',
+			'Total ' => '',
+			'Average ' => '',
+			);
+		foreach($shorten as $orig => $new)
+		{
+			$scale = str_replace($orig, $new, $scale);
+		}
 
-		return count($scale_parts) == 2 ? trim($scale_parts[1]) : array();
+		return $scale;
 	}
 	public function get_result_proportion()
 	{
@@ -333,6 +363,10 @@ class pts_test_profile_parser
 	{
 		return pts_strings::string_bool($this->xg('TestProfile/AutoSaveResults', 'FALSE'));
 	}
+	public function do_remove_test_install_directory_on_reinstall()
+	{
+		return pts_strings::string_bool($this->xg('TestProfile/RemoveInstallDirectoryOnReinstall', 'TRUE'));
+	}
 	public function get_result_quantifier()
 	{
 		return $this->xg('TestInformation/ResultQuantifier');
@@ -341,9 +375,21 @@ class pts_test_profile_parser
 	{
 		return pts_strings::string_bool($this->xg('TestProfile/RequiresRoot', 'FALSE'));
 	}
+	public function is_display_required()
+	{
+		return pts_strings::string_bool($this->xg('TestProfile/RequiresDisplay', 'FALSE')) || ($this->xg('TestProfile/RequiresDisplay') == null && $this->get_test_hardware_type() == 'Graphics');
+	}
+	public function is_network_required()
+	{
+		return pts_strings::string_bool($this->xg('TestProfile/RequiresNetwork', 'FALSE')) || $this->get_test_hardware_type() == 'Network';
+	}
+	public function is_internet_required()
+	{
+		return pts_strings::string_bool($this->xg('TestProfile/RequiresInternet', 'FALSE'));
+	}
 	public function allow_cache_share()
 	{
-		return pts_strings::string_bool($this->xg('TestSettings/Default/AllowCacheShare', 'FALSE'));
+		return pts_strings::string_bool($this->xg('TestSettings/Default/AllowCacheShare'));
 	}
 	public function allow_results_sharing()
 	{
@@ -387,7 +433,7 @@ class pts_test_profile_parser
 	}
 	public function get_estimated_run_time()
 	{
-		return $this->xg('TestProfile/EstimatedTimePerRun', 0) * $this->get_times_to_run();
+		return $this->xg('TestProfile/EstimatedTimePerRun', 0) * $this->get_default_times_to_run();
 	}
 	public function requires_core_version_min()
 	{
@@ -395,13 +441,17 @@ class pts_test_profile_parser
 	}
 	public function requires_core_version_max()
 	{
-		return $this->xg('TestProfile/RequiresCoreVersionMax', 9190);
+		return $this->xg('TestProfile/RequiresCoreVersionMax', 19990);
+	}
+	public function get_test_option_objects_array()
+	{
+		return $this->get_test_option_objects(false);
 	}
 	public function get_test_option_objects($auto_process = true)
 	{
 		$test_options = array();
 
-		if($this->xml->TestSettings && $this->xml->TestSettings->Option)
+		if($this->xml && $this->xml->TestSettings && $this->xml->TestSettings->Option)
 		{
 			foreach($this->xml->TestSettings->Option as $option)
 			{
@@ -421,10 +471,10 @@ class pts_test_profile_parser
 
 				if($auto_process)
 				{
-					pts_test_run_options::auto_process_test_option($this->identifier, $option->Identifier, $names, $values, $messages);
+					pts_test_run_options::auto_process_test_option($this, $option->Identifier, $names, $values, $messages);
 				}
 
-				$user_option = new pts_test_option($option->Identifier->__toString(), $option->DisplayName->__toString());
+				$user_option = new pts_test_option($option->Identifier->__toString(), $option->DisplayName->__toString(), $option->Message->__toString());
 				$user_option->set_option_prefix($option->ArgumentPrefix->__toString());
 				$user_option->set_option_postfix($option->ArgumentPostfix->__toString());
 

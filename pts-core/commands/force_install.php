@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2015, Phoronix Media
-	Copyright (C) 2009 - 2015, Michael Larabel
+	Copyright (C) 2009 - 2018, Phoronix Media
+	Copyright (C) 2009 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,9 +22,13 @@
 
 class force_install implements pts_option_interface
 {
-	const doc_section = 'Asset Creation';
-	const doc_description = 'This option will force the installation (or re-installation) of a test or suite. The arguments and process is similar to the install option but even if the test is installed, the entire installation process will automatically be executed. This option is generally used when debugging a test installation problem.';
+	const doc_section = 'Test Installation';
+	const doc_description = 'This option will force the installation (or re-installation) of a test or suite. The arguments and process is similar to the install option but even if the test is installed, the entire installation process will automatically be executed. This option is generally used when debugging a test installation problem or wishing to re-install test(s) due to compiler or other environmental changes.';
 
+	public static function command_aliases()
+	{
+		return array('reinstall', 're-install');
+	}
 	public static function argument_checks()
 	{
 		return array(
@@ -34,10 +38,6 @@ class force_install implements pts_option_interface
 	public static function run($r)
 	{
 		pts_test_installer::standard_install($r, true);
-	}
-	public static function invalid_command($passed_args = null)
-	{
-		pts_tests::invalid_command_helper($passed_args);
 	}
 }
 

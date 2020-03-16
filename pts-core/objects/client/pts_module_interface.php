@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2019, Phoronix Media
+	Copyright (C) 2008 - 2019, Michael Larabel
 	pts_module_interface.php: The generic Phoronix Test Suite module object that is extended by the specific modules/plug-ins
 
 	This program is free software; you can redistribute it and/or modify
@@ -113,12 +113,12 @@ class pts_module_interface
 	}
 	public static function __pre_test_install($obj = null)
 	{
-		// Passed as the first argument to this function is the test identifier for the name of the test about to be installed
+		// Passed as the first argument to this function is the test install request for the test about to be installed
 		return;
 	}
 	public static function __post_test_install($obj = null)
 	{
-		// Passed as the first argument to this function is the test identifier for the name of the test just installed
+		// Passed as the first argument to this function is the test install request for the test just installed
 		return;
 	}
 	public static function __post_install_process($obj = null)
@@ -171,6 +171,11 @@ class pts_module_interface
 		// Passed is a copy of the pts_test_result when the run was successful
 		return;
 	}
+	public static function __test_run_success_inline_result($obj = null)
+	{
+		// Passed is a copy of the successful pts_test_result after showing other inline metrics
+		return;
+	}
 	public static function __post_test_run_process($obj = null)
 	{
 		// Passed is a copy of the pts_result_file
@@ -204,6 +209,11 @@ class pts_module_interface
 	public static function __event_results_saved($obj = null)
 	{
 		// Passed is a copy of the pts_test_run_manager
+		return;
+	}
+	public static function __event_post_run_stats($obj = null)
+	{
+		// Passed is a copy of the pts_test_run_manager for showing any post-run statistics
 		return;
 	}
 	public static function __event_user_error($obj = null)

@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2015, Phoronix Media
-	Copyright (C) 2009 - 2015, Michael Larabel
+	Copyright (C) 2009 - 2018, Phoronix Media
+	Copyright (C) 2009 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -42,19 +42,39 @@ class gpu_freq extends phodevi_sensor
 			$core_freq = isset($nv_freq[0]) ? $nv_freq[0] : 0;
 			$mem_freq = isset($nv_freq[1]) ? $nv_freq[1] : 0;
 		}
-		else if(phodevi::is_ati_graphics() && phodevi::is_linux()) // ATI GPU
-		{
-			$od_clocks = phodevi_linux_parser::read_ati_overdrive('CurrentClocks');
-
-			if(is_array($od_clocks) && count($od_clocks) >= 2) // ATI OverDrive
-			{
-				$core_freq = array_shift($od_clocks);
-				$mem_freq = array_pop($od_clocks);
-			}
-		}
 		else if(phodevi::is_linux())
 		{
-			if(isset(phodevi::$vfs->radeon_pm_info))
+			if(is_readable('/sys/class/drm/card0/device/pp_dpm_sclk'))
+			{
+				$pp = PHP_EOL . file_get_contents('/sys/class/drm/card0/device/pp_dpm_sclk');
+				$pp = substr($pp, 0, strpos($pp, '*'));
+				$pp = substr($pp, strrpos($pp, PHP_EOL));
+				if(($x = strpos($pp, ': ')) !== false)
+				{
+					$pp = substr($pp, $x + 2);
+				}
+				$pp = trim(str_replace(array('*', 'Mhz'), '', $pp));
+				if(is_numeric($pp))
+				{
+					$core_freq = $pp;
+					if(is_readable('/sys/class/drm/card0/device/pp_dpm_mclk'))
+					{
+						$pp = PHP_EOL . file_get_contents('/sys/class/drm/card0/device/pp_dpm_mclk');
+						$pp = substr($pp, 0, strpos($pp, '*'));
+						$pp = substr($pp, strrpos($pp, PHP_EOL));
+						if(($x = strpos($pp, ': ')) !== false)
+						{
+							$pp = substr($pp, $x + 2);
+						}
+						$pp = trim(str_replace(array('*', 'Mhz'), '', $pp));
+						if(is_numeric($pp))
+						{
+							$mem_freq = $pp;
+						}
+					}
+				}
+			}
+			else if(isset(phodevi::$vfs->radeon_pm_info))
 			{
 				// radeon_pm_info should be present with Linux 2.6.34+
 				foreach(pts_strings::trim_explode("\n", phodevi::$vfs->radeon_pm_info) as $pm_line)

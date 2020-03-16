@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2015 - 2017, Phoronix Media
-	Copyright (C) 2015 - 2017, Michael Larabel
+	Copyright (C) 2015 - 2019, Phoronix Media
+	Copyright (C) 2015 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -34,6 +34,75 @@ class pts_stress_run_manager extends pts_test_run_manager
 	private $stress_logger;
 	private $stress_log_event_call = false;
 
+	public static function stress_run($to_run, $batch_mode = false)
+	{
+		if($batch_mode == false)
+		{
+			$batch_mode = array(
+				'UploadResults' => false,
+				'SaveResults' => false,
+				'PromptForTestDescription' => false,
+				'RunAllTestCombinations' => false,
+				'PromptSaveName' => false,
+				'PromptForTestIdentifier' => false,
+				'OpenBrowser' => false
+				);
+		}
+		$test_run_manager = new pts_stress_run_manager($batch_mode);
+
+		$tests_to_run_concurrently = 2;
+
+		echo PHP_EOL . pts_client::cli_just_bold('STRESS-RUN ENVIRONMENT VARIABLES:') . PHP_EOL;
+
+		if(($j = getenv('PTS_CONCURRENT_TEST_RUNS')) && is_numeric($j) && $j > 1)
+		{
+			$tests_to_run_concurrently = $j;
+			echo PHP_EOL . 'PTS_CONCURRENT_TEST_RUNS set; running ' . $tests_to_run_concurrently . ' tests concurrently.' . PHP_EOL . PHP_EOL;
+		}
+		else
+		{
+			echo PHP_EOL . pts_client::cli_just_bold('PTS_CONCURRENT_TEST_RUNS:') . ' Set the PTS_CONCURRENT_TEST_RUNS environment variable to specify how many tests should be run concurrently during the stress-run process. If not specified, defaults to 2.' . PHP_EOL . PHP_EOL;
+		}
+
+		// Run the actual tests
+		$total_loop_time = pts_client::read_env('TOTAL_LOOP_TIME');
+		if($total_loop_time == 'infinite')
+		{
+			$total_loop_time = 'infinite';
+			echo PHP_EOL . 'TOTAL_LOOP_TIME set; running tests in an infinite loop until otherwise triggered' . PHP_EOL . PHP_EOL;
+		}
+		else if($total_loop_time && is_numeric($total_loop_time) && $total_loop_time > 1)
+		{
+			echo PHP_EOL . 'TOTAL_LOOP_TIME set; running tests for ' . $total_loop_time . ' minutes' . PHP_EOL . PHP_EOL;
+		}
+		else
+		{
+			echo PHP_EOL . pts_client::cli_just_bold('TOTAL_LOOP_TIME:') . ' Set the TOTAL_LOOP_TIME environment variable if wishing to specify (in minutes) how long to run the stress-run process.' . PHP_EOL . PHP_EOL;
+			$total_loop_time = false;
+		}
+		//pts_test_installer::standard_install($to_run);
+		/*
+		if(count($to_run) < $tests_to_run_concurrently)
+		{
+			echo PHP_EOL . 'More tests must be specified in order to run ' . $tests_to_run_concurrently . ' tests concurrently.';
+			return false;
+		}
+		*/
+
+		if($test_run_manager->initial_checks($to_run, 'SHORT') == false)
+		{
+			return false;
+		}
+
+		// Load the tests to run
+		if($test_run_manager->load_tests_to_run($to_run) == false)
+		{
+			return false;
+		}
+
+		//$test_run_manager->pre_execution_process();
+		$test_run_manager->multi_test_stress_run_execute($tests_to_run_concurrently, $total_loop_time);
+	}
 	public function multi_test_stress_run_execute($tests_to_run_concurrently = 3, $total_loop_time = false)
 	{
 		ini_set('memory_limit','8192M'); // XXX testing
@@ -133,6 +202,13 @@ class pts_stress_run_manager extends pts_test_run_manager
 			$table[] = array($component . ': ', $value);
 		}
 		$this->stress_print_and_log('SYSTEM INFORMATION: ' . PHP_EOL . phodevi::system_centralized_view() . PHP_EOL . PHP_EOL);
+		if(!function_exists('pcntl_waitpid'))
+		{
+			$this->stress_print_and_log('PHP PCNTL support is to run stress tests.' . PHP_EOL);
+			return false;
+
+		}
+		pts_module_manager::module_process('__pre_run_process', $this);
 
 		// BEGIN THE LOOP
 		while(!empty($possible_tests_to_run))
@@ -305,6 +381,7 @@ class pts_stress_run_manager extends pts_test_run_manager
 			}
 		}
 
+		pts_module_manager::module_process('__post_run_process', $this);
 		putenv('FORCE_TIMES_TO_RUN');
 		pts_file_io::delete($this->thread_collection_dir, null, true);
 
@@ -326,6 +403,10 @@ class pts_stress_run_manager extends pts_test_run_manager
 		pcntl_signal(SIGHUP, SIG_DFL);
 
 		return true;
+	}
+	public function is_interactive_mode()
+	{
+		return false;
 	}
 	protected function skip_test_check(&$test)
 	{
@@ -481,7 +562,7 @@ class pts_stress_run_manager extends pts_test_run_manager
 			{
 				$table[] = array(pts_client::cli_just_bold($sensor_name . ': '),
 					pts_math::set_precision(min($sensor_data), 2),
-					pts_math::set_precision(array_sum($sensor_data) / count($sensor_data), 2),
+					pts_math::set_precision(pts_math::arithmetic_mean($sensor_data), 2),
 					pts_math::set_precision($max_val, 2),
 					$this->sensor_data_archived_units[$sensor_name]);
 			}

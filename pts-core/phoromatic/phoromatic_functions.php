@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2013 - 2016, Phoronix Media
-	Copyright (C) 2013 - 2016, Michael Larabel
+	Copyright (C) 2013 - 2018, Phoronix Media
+	Copyright (C) 2013 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -112,7 +112,7 @@ function phoromatic_init_web_page_setup()
 	}
 
 	define('PHOROMATIC_SERVER', true);
-	if(PTS_IS_DEV_BUILD)
+	if(defined('PTS_IS_DEV_BUILD') && PTS_IS_DEV_BUILD)
 	{
 		error_reporting(E_ALL);
 	}
@@ -259,7 +259,7 @@ function phoromatic_schedule_activeon_string($active_on, $active_at = null)
 function phoromatic_webui_footer()
 {
 	return '<div id="pts_phoromatic_bottom_footer">
-<div style="float: right; padding: 2px 10px; overflow: hidden;"><a href="http://openbenchmarking.org/" style="margin-right: 20px;"><img src="data:image/png;base64,' . base64_encode(file_get_contents('images/ob-white-logo.png')) . '" /></a> <a href="http://www.phoronix-test-suite.com/"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewbox="0 0 76 41" width="76" height="41" preserveAspectRatio="xMinYMin meet">
+<div style="float: right; padding: 2px 10px; overflow: hidden;"><a href="http://openbenchmarking.org/" style="margin-right: 20px;"><img src="data:image/png;base64,' . base64_encode(file_get_contents('images/ob-white-logo.png')) . '" /></a> <a href="https://www.phoronix-test-suite.com/"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewbox="0 0 76 41" width="76" height="41" preserveAspectRatio="xMinYMin meet">
   <path d="m74 22v9m-5-16v16m-5-28v28m-23-2h12.5c2.485281 0 4.5-2.014719 4.5-4.5s-2.014719-4.5-4.5-4.5h-8c-2.485281 0-4.5-2.014719-4.5-4.5s2.014719-4.5 4.5-4.5h12.5m-21 5h-11m11 13h-2c-4.970563 0-9-4.029437-9-9v-20m-24 40v-20c0-4.970563 4.0294373-9 9-9 4.970563 0 9 4.029437 9 9s-4.029437 9-9 9h-9" stroke="#c8d905" stroke-width="4" fill="none" />
 </svg></a></div>
 <p style="margin: 6px 15px;"><strong>' . date('H:i T - j F Y') . '</strong>' . (PTS_IS_DEV_BUILD ? ' &nbsp; [' . round(microtime(true) - PAGE_LOAD_START_TIME, 2) . 's Page Load Time]' : null) . '<br />Copyright &copy; 2008 - ' . date('Y') . ' by <a href="http://www.phoronix-media.com/">Phoronix Media</a>. All rights reserved.<br />
@@ -288,7 +288,7 @@ function phoromatic_tracker_page_relevant()
 	{
 		do
 		{
-			if($row['UploadedResultCount'] > (($row['RunTargetSystems'] + $row['RunTargetGroups'] + 1) * 7))
+			if(is_numeric($row['RunTargetSystems']) && $row['UploadedResultCount'] > (($row['RunTargetSystems'] + $row['RunTargetGroups'] + 1) * 7))
 			{
 				return true;
 			}
@@ -308,6 +308,7 @@ function phoromatic_webui_header_logged_in()
 	else if($_SESSION['AdminLevel'] > 0)
 	{
 		$sub_main_menu = array();
+		$sub_tests_menu = array();
 		$sub_systems_menu = array();
 		$sub_testing_menu = array();
 		$sub_results_menu = array();
@@ -319,7 +320,7 @@ function phoromatic_webui_header_logged_in()
 			$sub_systems_menu[] = 'Component Table';
 		}
 
-		$sub_main_menu[] = '<a href="?tests">Test Profiles</a>';
+		//$sub_main_menu[] = '<a href="?tests">Test Profiles</a>';
 		if(isset($_SESSION['AdminLevel']) && $_SESSION['AdminLevel'] < 4)
 		{
 			$sub_main_menu[] = 'Users';
@@ -330,6 +331,8 @@ function phoromatic_webui_header_logged_in()
 
 		if(!PHOROMATIC_USER_IS_VIEWER)
 		{
+			array_push($sub_tests_menu, '<a href="?create_test">Create New Test Profile</a>');
+			array_push($sub_tests_menu, '<a href="?build_suite">Build Test Suite</a>');
 			array_push($sub_testing_menu, '<a href="?sched">Create A Schedule</a>', '<a href="?benchmark">Run A Benchmark</a>');
 		}
 
@@ -339,7 +342,7 @@ function phoromatic_webui_header_logged_in()
 		}
 		$sub_results_menu[] = '<a href="/rss.php?user=' . $_SESSION['UserID'] . '&amp;v=' . sha1($_SESSION['CreatedOn']) . '">Results Feed <img src="images/rss.png" /></a>';
 
-		$pages = array('Main' => $sub_main_menu, 'Systems' => $sub_systems_menu, '<a href="/?testing">Testing</a>' => $sub_testing_menu, 'Results' => $sub_results_menu, '<form action="/?search" method="post" id="search"><input type="search" name="search" id="seach_input" size="16" /> <input type="submit" name="sa" value="Search" /></form>');
+		$pages = array('Main' => $sub_main_menu, 'Systems' => $sub_systems_menu, 'Tests' => $sub_tests_menu, '<a href="/?testing">Testing</a>' => $sub_testing_menu, 'Results' => $sub_results_menu, '<form action="/?search" method="post" id="search"><input type="search" name="search" id="seach_input" size="16" /> <input type="submit" name="sa" value="Search" /><div class="search_expander"></div></form>');
 	}
 
 	foreach($pages as $title => $page)

@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2017, Phoronix Media
-	Copyright (C) 2009 - 2017, Michael Larabel
+	Copyright (C) 2009 - 2019, Phoronix Media
+	Copyright (C) 2009 - 2019, Michael Larabel
 	pts_concise_display_mode.php: The batch / concise display mode
 
 	This program is free software; you can redistribute it and/or modify
@@ -40,6 +40,8 @@ class pts_concise_display_mode implements pts_display_mode_interface
 	// Run bits
 	private $expected_trial_run_count = 0;
 	private $trial_run_count_current = 0;
+	private $current_saved_test_identifier = null;
+	private $current_test = null;
 
 	public function __construct()
 	{
@@ -157,6 +159,15 @@ class pts_concise_display_mode implements pts_display_mode_interface
 		}
 
 		echo PHP_EOL;
+		if($test_install_request->test_profile->get_status() != 'Verified' && $test_install_request->test_profile->get_status() != '')
+		{
+			echo $this->tab . $this->tab . 'Test Profile Status: ' . pts_client::cli_just_bold($test_install_request->test_profile->get_status()) . PHP_EOL;
+		}
+		if(in_array($test_install_request->test_profile->get_license(), array('Retail', 'Restricted')))
+		{
+			echo $this->tab . $this->tab . pts_client::cli_just_bold('This test may depend upon third-party/commercial retail software.') . PHP_EOL;
+		}
+
 	}
 	public function test_install_download_file($process, &$pts_test_file_download)
 	{
@@ -192,10 +203,10 @@ class pts_concise_display_mode implements pts_display_mode_interface
 		$expected_time = is_numeric($expected_time) && $expected_time > 0 ? pts_strings::format_time($expected_time, 'SECONDS', false, 60) : null;
 
 		// TODO: handle if file-name is too long for terminal width
-		$download_string = $this->tab . $this->tab . $process_string . ': ' . $pts_test_file_download->get_filename();
+		$download_string = $this->tab . $this->tab . pts_client::cli_just_bold($process_string) . ': ' . $pts_test_file_download->get_filename();
 		$download_size_string = $pts_test_file_download->get_filesize() > 0 ? ' [' . self::bytes_to_download_size($pts_test_file_download->get_filesize()) . 'MB]' : null;
 		$offset_length = pts_client::terminal_width() > 1 ? pts_client::terminal_width() : pts_test_file_download::$longest_file_name_length;
-		$offset_length = $offset_length - strlen($download_string) - strlen($download_size_string) - 2;
+		$offset_length = $offset_length - strlen(pts_user_io::strip_ansi_escape_sequences($download_string)) - strlen($download_size_string) - 2;
 
 		if($offset_length < 2)
 		{
@@ -209,9 +220,9 @@ class pts_concise_display_mode implements pts_display_mode_interface
 		$this->progress_line_prefix = $expected_time != null ? 'Estimated Download Time: ' . $expected_time : $progress_prefix;
 		$this->progress_last_float = -1;
 		$this->progress_tab_count = 2;
-		$this->progress_string_length = strlen($download_string);
+		$this->progress_string_length = strlen(pts_user_io::strip_ansi_escape_sequences($download_string));
 	}
-	public function display_interrupt_message($message)
+	public function display_interrupt_message($message, $prefix_tag = 'NOTICE', $text_color = 'gray')
 	{
 		if($message == null)
 		{
@@ -220,7 +231,7 @@ class pts_concise_display_mode implements pts_display_mode_interface
 
 		$terminal_width = pts_client::terminal_width() > 1 ? pts_client::terminal_width() : $terminal_width;
 		$text_width = $terminal_width - (strlen($this->tab) * 3);
-		echo PHP_EOL . $this->tab . $this->tab . pts_client::cli_colored_text(wordwrap('[NOTICE] ' . $message, $text_width, PHP_EOL . $this->tab . $this->tab), 'gray', true) . PHP_EOL;
+		echo PHP_EOL . $this->tab . $this->tab . pts_client::cli_colored_text(wordwrap(($prefix_tag != null ? '[' . $prefix_tag . '] ' : null) . $message, $text_width, PHP_EOL . $this->tab . $this->tab), $text_color, true) . PHP_EOL;
 	}
 	public function test_install_progress_start($process)
 	{
@@ -273,6 +284,10 @@ class pts_concise_display_mode implements pts_display_mode_interface
 	{
 		return;
 	}
+	public function test_install_message($msg_string)
+	{
+		echo $this->tab . $this->tab . pts_client::cli_colored_text($msg_string, 'green', true) . PHP_EOL;
+	}
 	public function test_install_error($error_string)
 	{
 		echo $this->tab . $this->tab . $this->tab . pts_client::cli_colored_text($error_string, 'red', true) . PHP_EOL;
@@ -294,6 +309,8 @@ class pts_concise_display_mode implements pts_display_mode_interface
 	}
 	public function test_run_start(&$test_run_manager, &$test_result)
 	{
+		$this->current_saved_test_identifier = $test_run_manager->get_results_identifier();
+		$this->current_test = $test_result->test_profile->get_identifier();
 		$test_title_string = $test_result->test_profile->get_title() . ($test_result->test_profile->get_app_version() != null ? ' ' . $test_result->test_profile->get_app_version() : null) . ':' . PHP_EOL . $this->tab . $test_result->test_profile->get_identifier();
 
 		if(($test_description = $test_result->get_arguments_description()) != false)
@@ -301,7 +318,7 @@ class pts_concise_display_mode implements pts_display_mode_interface
 			$test_title_string .= ' [' . pts_client::swap_variables($test_description, array('pts_client', 'environmental_variables')) . ']';
 		}
 
-		echo PHP_EOL . PHP_EOL . pts_client::cli_colored_text($test_title_string, 'cyan', true) . PHP_EOL;
+		echo PHP_EOL . pts_client::cli_colored_text($test_title_string, 'cyan', true) . PHP_EOL;
 		echo $this->tab . 'Test ' . $test_run_manager->get_test_run_position() . ' of ' . $test_run_manager->get_test_run_count_reported() . PHP_EOL;
 
 		$this->trial_run_count_current = 0;
@@ -309,6 +326,12 @@ class pts_concise_display_mode implements pts_display_mode_interface
 		$remaining_length = $test_run_manager->get_estimated_run_time();
 		$estimated_length = $test_result->test_profile->get_estimated_run_time();
 		$display_table = array();
+
+
+		if($test_result->test_profile->get_status() != 'Verified' && $test_result->test_profile->get_status() != '')
+		{
+			array_push($display_table, array($this->tab . 'Test Profile Status:', pts_client::cli_just_italic($test_result->test_profile->get_status())));
+		}
 
 		array_push($display_table, array($this->tab . 'Estimated Trial Run Count:', $this->expected_trial_run_count));
 
@@ -407,7 +430,7 @@ class pts_concise_display_mode implements pts_display_mode_interface
 
 			if(count($values) > 1)
 			{
-				$avg = pts_math::set_precision(array_sum($values) / count($values), 2);
+				$avg = pts_math::set_precision(pts_math::arithmetic_mean($values), 2);
 				$min = pts_math::set_precision(min($values), 2);
 				$max = pts_math::set_precision(max($values), 2);
 				$end_print .= $this->tab . 'Average: ' . pts_client::cli_colored_text($avg, 'blue', true) . ' ' . $test_result->test_profile->get_result_scale() . PHP_EOL;
@@ -463,6 +486,10 @@ class pts_concise_display_mode implements pts_display_mode_interface
 			{
 				$end_print .= PHP_EOL . $this->tab . 'Deviation: ' . pts_math::set_precision(pts_math::percent_standard_deviation($test_result->active->results), 2) . '%';
 			}
+			if(count($test_result->active->results) != $test_result->test_profile->get_default_times_to_run())
+			{
+				$end_print .= PHP_EOL . $this->tab . 'Samples: ' . count($test_result->active->results);
+			}
 
 			if($test_result->active->get_result() == 0)
 			{
@@ -474,9 +501,22 @@ class pts_concise_display_mode implements pts_display_mode_interface
 
 		echo $end_print;
 	}
+	public function test_run_success_inline($test_result_orig)
+	{
+		if($test_result_orig->test_result_buffer->get_count() < 2)
+		{
+			return;
+		}
+
+		$test_result = clone $test_result_orig;
+		$test_result->sort_results_by_performance();
+		$test_result->test_result_buffer->buffer_values_reverse();
+		echo pts_result_file_output::test_result_to_text($test_result, pts_client::terminal_width(), true, $this->current_saved_test_identifier, ($test_result->test_profile->get_identifier() == null || $this->current_test != $test_result->test_profile->get_identifier()));
+		echo PHP_EOL;
+	}
 	public function test_run_error($error_string)
 	{
-		echo $this->tab . $this->tab . pts_client::cli_colored_text($error_string, 'red', true) . PHP_EOL;
+		echo PHP_EOL . $this->tab . $this->tab . pts_client::cli_colored_text($error_string, 'red', true) . PHP_EOL;
 	}
 	public function generic_prompt($prompt_string)
 	{
@@ -522,7 +562,7 @@ class pts_concise_display_mode implements pts_display_mode_interface
 	}
 	public function triggered_system_error($level, $message, $file, $line)
 	{
-		$error_msg = PHP_EOL . '[' . $level . '] ';
+		$error_msg = PHP_EOL . $this->tab . '[' . $level . '] ';
 		if(strpos($message, PHP_EOL) === false)
 		{
 			$error_msg .= $message . ' ';

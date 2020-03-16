@@ -9,7 +9,7 @@
 		</Information>
 		<Package>
 			<GenericName>common-dependencies</GenericName>
-			<PackageName>mesa-utils unzip apt-file</PackageName>
+			<PackageName>mesa-utils unzip apt-file unzip</PackageName>
 			<FileCheck>glxinfo, unzip, apt-file</FileCheck>
 		</Package>
 		<Package>
@@ -38,6 +38,10 @@
 			<PackageName>libsdl1.2-dev libsdl-gfx1.2-dev libsdl-net1.2-dev libsdl-image1.2-dev libsdl-ttf2.0-dev libsdl-mixer1.2-dev</PackageName>
 		</Package>
 		<Package>
+			<GenericName>vulkan-development</GenericName>
+			<PackageName>vulkan-utils libvulkan-dev</PackageName>
+		</Package>
+		<Package>
 			<GenericName>glut</GenericName>
 			<PackageName>freeglut3-dev</PackageName>
 		</Package>
@@ -56,7 +60,7 @@
 		<Package>
 			<GenericName>build-utilities</GenericName>
 			<PackageName>build-essential autoconf</PackageName>
-			<FileCheck>/usr/share/build-essential</FileCheck>
+			<FileCheck>/usr/share/build-essential, autoconf</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>cairo-development</GenericName>
@@ -69,7 +73,7 @@
 		</Package>
 		<Package>
 			<GenericName>tiff</GenericName>
-			<PackageName>libtiff-dev</PackageName>
+			<PackageName>libtiff5-dev</PackageName>
 		</Package>
 		<Package>
 			<GenericName>bison</GenericName>
@@ -85,11 +89,15 @@
 		</Package>
 		<Package>
 			<GenericName>java</GenericName>
-			<PackageName>openjdk-6-jre</PackageName>
+			<PackageName>openjdk-11-jdk</PackageName>
+		</Package>
+		<Package>
+			<GenericName>maven</GenericName>
+			<PackageName>maven</PackageName>
 		</Package>
 		<Package>
 			<GenericName>portaudio-development</GenericName>
-			<PackageName>libportaudio-dev</PackageName>
+			<PackageName>portaudio19-dev</PackageName>
 		</Package>
 		<Package>
 			<GenericName>fortran-compiler</GenericName>
@@ -139,7 +147,7 @@
 		<Package>
 			<GenericName>perl</GenericName>
 			<PackageName>perl perl-base perl-modules libsdl-perl libperl-dev</PackageName>
-			<FileCheck>perl, /etc/perl/CPAN</FileCheck>
+			<FileCheck>perl, /etc/perl</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>perl-opengl</GenericName>
@@ -176,12 +184,21 @@
 			<FileCheck>qmake-qt4, qt4/Qt/qgl.h</FileCheck>
 		</Package>
 		<Package>
+			<GenericName>qt5-development</GenericName>
+			<PackageName>qml-module-qtquick2 qtdeclarative5-dev qt5-default qtbase5-dev</PackageName>
+			<FileCheck>qmake</FileCheck>
+		</Package>
+		<Package>
 			<GenericName>autoconf</GenericName>
 			<PackageName>autoconf</PackageName>
 		</Package>
 		<Package>
 			<GenericName>libtool</GenericName>
 			<PackageName>libtool</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libevent</GenericName>
+			<PackageName>libevent-dev</PackageName>
 		</Package>
 		<Package>
 			<GenericName>ncurses-development</GenericName>
@@ -197,7 +214,7 @@
 		</Package>
 		<Package>
 			<GenericName>curl</GenericName>
-			<PackageName>libcurl3 curl</PackageName>
+			<PackageName>curl libcurl4-openssl-dev</PackageName>
 		</Package>
 		<Package>
 			<GenericName>fftw3-development</GenericName>
@@ -205,7 +222,8 @@
 		</Package>
 		<Package>
 			<GenericName>blas-development</GenericName>
-			<PackageName>libblas-dev</PackageName>
+			<PackageName>libblas-dev libopenblas-base libopenblas-dev</PackageName>
+			<FileCheck>/usr/include/x86_64-linux-gnu/openblas_config.h OR /usr/include/openblas/openblas_config.h</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>lapack-development</GenericName>
@@ -234,11 +252,15 @@
 		</Package>
 		<Package>
 			<GenericName>tcl</GenericName>
-			<PackageName>tcl</PackageName>
+			<PackageName>tcl tclsh</PackageName>
 		</Package>
 		<Package>
 			<GenericName>glibc-development</GenericName>
 			<PackageName>libc6-dev</PackageName>
+		</Package>
+		<Package>
+			<GenericName>rust</GenericName>
+			<PackageName>rustc cargo</PackageName>
 		</Package>
 		<Package>
 			<GenericName>glibc-development</GenericName>
@@ -248,7 +270,8 @@
 		</Package>
 		<Package>
 			<GenericName>python</GenericName>
-			<PackageName>python</PackageName>
+			<PackageName>python-pip python3-pip python3-yaml</PackageName>
+			<FileCheck>pip3, python3</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>python-boost-development</GenericName>
@@ -261,11 +284,11 @@
 		<Package>
 			<GenericName>python-numpy</GenericName>
 			<PackageName>python-numpy</PackageName>
-			<FileCheck>/usr/share/pyshared/numpy/version.py</FileCheck>
+			<FileCheck>/usr/share/pyshared/numpy/version.py OR /usr/lib/python2.7/dist-packages/numpy/version.py</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>yasm</GenericName>
-			<PackageName>yasm</PackageName>
+			<PackageName>yasm nasm</PackageName>
 		</Package>
 		<Package>
 			<GenericName>gmp-library</GenericName>
@@ -307,9 +330,17 @@
 			<GenericName>httpd</GenericName>
 			<PackageName>apache2</PackageName>
 		</Package>
+		<Package>
+			<GenericName>meson</GenericName>
+			<PackageName>meson</PackageName>
+		</Package>
                 <Package>
 			<GenericName>golang</GenericName>
 			<PackageName>golang</PackageName>
+		</Package>
+                <Package>
+			<GenericName>steam</GenericName>
+			<PackageName>steam</PackageName>
 		</Package>
                 <Package>
 			<GenericName>redis-server</GenericName>
@@ -325,13 +356,73 @@
                 </Package>
 		<Package>
 			<GenericName>python-scipy</GenericName>
-			<PackageName>python-scipy</PackageName>
-			<FileCheck>/usr/lib/python2.7/dist-packages/scipy</FileCheck>
+			<PackageName>python3-scipy</PackageName>
+			<FileCheck>/usr/lib/python3/dist-packages/scipy</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>python-sklearn</GenericName>
-			<PackageName>python-sklearn</PackageName>
-			<FileCheck>/usr/lib/python2.7/dist-packages/sklearn/</FileCheck>
+			<PackageName>python3-sklearn</PackageName>
+			<FileCheck>/usr/lib/python3/dist-packages/sklearn/</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>V8</GenericName>
+			<PackageName>libv8-dev</PackageName>
+		</Package>
+		<Package>
+			<GenericName>ruby</GenericName>
+			<PackageName>ruby</PackageName>
+		</Package>
+		<Package>
+			<GenericName>gimp</GenericName>
+			<PackageName>gimp</PackageName>
+		</Package>
+		<Package>
+			<GenericName>darktable</GenericName>
+			<PackageName>darktable</PackageName>
+		</Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<PackageName>wine</PackageName>
+		</Package>
+		<Package>
+			<GenericName>mongodb</GenericName>
+			<PackageName>mongodb</PackageName>
+		</Package>
+		<Package>
+			<GenericName>node-npm</GenericName>
+			<PackageName>npm</PackageName>
+		</Package>
+		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>libexpat1-dev</PackageName>
+		</Package>
+		<Package>
+			<GenericName>hdf5</GenericName>
+			<PackageName>libhdf5-dev libhdf5-mpi-dev</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libxml2</GenericName>
+			<PackageName>libxml2-dev</PackageName>
+		</Package>
+		<Package>
+			<GenericName>uuid</GenericName>
+			<PackageName>uuid-dev</PackageName>
+		</Package>
+		<Package>
+			<GenericName>clang</GenericName>
+			<PackageName>clang</PackageName>
+		</Package>
+		<Package>
+			<GenericName>gflags</GenericName>
+			<PackageName>libgflags-dev</PackageName>
+		</Package>
+		<Package>
+			<GenericName>google-benchmark</GenericName>
+			<PackageName>libbenchmark-dev</PackageName>
+		</Package>
+		<Package>
+			<GenericName>snappy</GenericName>
+			<PackageName>libsnappy-dev</PackageName>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2017, Phoronix Media
-	Copyright (C) 2008 - 2017, Michael Larabel
+	Copyright (C) 2008 - 2018, Phoronix Media
+	Copyright (C) 2008 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -112,25 +112,12 @@ class pts_render
 			{
 				$normalize_against = false;
 			}
-
-			$result_object->normalize_buffer_values($normalize_against);
+			$result_object->normalize_buffer_values($normalize_against, $extra_attributes);
 		}
 		if(isset($extra_attributes['sort_result_buffer_values']))
 		{
-			$result_object->test_result_buffer->buffer_values_sort();
-
-			if($result_object->test_profile->get_result_proportion() == 'HIB')
-			{
-				$result_object->test_result_buffer->buffer_values_reverse();
-			}
+			$result_object->sort_results_by_performance();
 		}
-		/*if(isset($extra_attributes['remove_noisy_results']))
-		{
-			foreach($result_object->test_result_buffer->get_buffer_items() as $i => &$buffer_item)
-			{
-
-			}
-		}*/
 		if(isset($extra_attributes['reverse_result_buffer']))
 		{
 			$result_object->test_result_buffer->buffer_values_reverse();
@@ -140,6 +127,8 @@ class pts_render
 		{
 			return false;
 		}
+
+		$horizontal_bars = pts_graph_core::get_graph_config('style', 'bar_graphs_horizontal') && !isset($extra_attributes['vertical_bars']);
 
 		if($result_file != null)
 		{
@@ -159,7 +148,7 @@ class pts_render
 			$result_identifiers = $result_object->test_result_buffer->get_identifiers();
 
 			// COMPACT PROCESS
-			if(!isset($extra_attributes['compact_to_scalar']) && $result_object->test_profile->get_display_format() == 'LINE_GRAPH' && ($result_file->get_system_count() > 5 || $result_file->is_multi_way_comparison($result_identifiers, $extra_attributes)))
+			if(!isset($extra_attributes['compact_to_scalar']) && $result_object->test_profile->get_display_format() == 'LINE_GRAPH' && ($result_file->get_system_count() > 7 || $result_file->is_multi_way_comparison($result_identifiers, $extra_attributes)))
 			{
 				// If there's too many lines being plotted on line graph, likely to look messy, so convert to scalar automatically
 				$extra_attributes['compact_to_scalar'] = true;
@@ -169,13 +158,10 @@ class pts_render
 			// Removing the command fixes cases like: 1210053-BY-MYRESULTS43
 			if(isset($extra_attributes['compact_to_scalar']) || isset($extra_attributes['compact_scatter']) || $result_file->is_multi_way_comparison($result_identifiers, $extra_attributes))
 			{
-				if((isset($extra_attributes['compact_to_scalar']) || (false && $result_file->is_multi_way_comparison($result_identifiers, $extra_attributes))) && in_array($result_object->test_profile->get_display_format(), array('LINE_GRAPH', 'FILLED_LINE_GRAPH')))
+				if((isset($extra_attributes['compact_to_scalar']) || (false && $result_file->is_multi_way_comparison($result_identifiers, $extra_attributes))) && in_array($result_object->test_profile->get_display_format(), array('LINE_GRAPH', 'FILLED_LINE_GRAPH')) && pts_graph_core::get_graph_config('style', 'allow_box_plots'))
 				{
 					// Convert multi-way line graph into horizontal box plot
-					if(true) // XXX is there any cases where we don't want horizontal box plot but prefer averaged bar graph?
-					{
-						$result_object->test_profile->set_display_format('HORIZONTAL_BOX_PLOT');
-					}
+					$result_object->test_profile->set_display_format('HORIZONTAL_BOX_PLOT');
 				}
 
 				if($result_file->is_results_tracker() && !isset($extra_attributes['compact_to_scalar']))
@@ -193,18 +179,27 @@ class pts_render
 					}
 				}
 			}
-			else if(in_array($result_object->test_profile->get_display_format(), array('LINE_GRAPH')))
+
+			if(in_array($result_object->test_profile->get_display_format(), array('LINE_GRAPH')) && !isset($extra_attributes['force_tracking_line_graph']))
 			{
 					// Check to see for line graphs if every result is an array of the same result (i.e. a flat line for every result).
 					// If all the results are just flat lines, you might as well convert it to a bar graph
 					$buffer_items = $result_object->test_result_buffer->get_buffer_items();
 					$all_values_are_flat = false;
+					$big_data_set = 0;
 					$flat_values = array();
 
 					foreach($buffer_items as $i => $buffer_item)
 					{
-						$unique_in_buffer = array_unique(explode(',', $buffer_item->get_result_value()));
+						$values_in_buffer = explode(',', $buffer_item->get_result_value());
+						$unique_in_buffer = array_unique($values_in_buffer);
 						$all_values_are_flat = count($unique_in_buffer) == 1;
+
+						if(isset($values_in_buffer[1200]))
+						{
+							// if more than 1200 points to plot, likely will be messy so condense it
+							$big_data_set++;
+						}
 
 						if($all_values_are_flat == false)
 						{
@@ -223,6 +218,10 @@ class pts_render
 
 						$result_object->test_profile->set_display_format('BAR_GRAPH');
 					}
+					else if($big_data_set > 0 && pts_graph_core::get_graph_config('style', 'allow_box_plots') && !isset($extra_attributes['no_box_plots']))
+					{
+						$result_object->test_profile->set_display_format('HORIZONTAL_BOX_PLOT');
+					}
 			}
 		}
 
@@ -237,15 +236,28 @@ class pts_render
 				$graph = new pts_graph_lines($result_object, $result_file, $extra_attributes);
 				break;
 			case 'HORIZONTAL_BOX_PLOT':
-				$graph = new pts_graph_box_plot($result_object, $result_file, $extra_attributes);
-				break;
+				if(pts_graph_core::get_graph_config('style', 'allow_box_plots'))
+				{
+					$graph = new pts_graph_box_plot($result_object, $result_file, $extra_attributes);
+					break;
+				}
 			case 'BAR_ANALYZE_GRAPH':
 			case 'BAR_GRAPH':
-				$graph = new pts_graph_horizontal_bars($result_object, $result_file, $extra_attributes);
+				if($horizontal_bars)
+				{
+					$graph = new pts_graph_horizontal_bars($result_object, $result_file, $extra_attributes);
+				}
+				else
+				{
+					$graph = new pts_graph_vertical_bars($result_object, $result_file, $extra_attributes);
+				}
 				break;
 			case 'PASS_FAIL':
 			case 'MULTI_PASS_FAIL':
 				$graph = new pts_graph_passfail($result_object, $result_file, $extra_attributes);
+				break;
+			case 'PIE_CHART':
+				$graph = new pts_graph_pie_chart($result_object, $result_file, $extra_attributes);
 				break;
 			case 'IMAGE_COMPARISON':
 				$graph = new pts_graph_iqc($result_object, $result_file, $extra_attributes);
@@ -264,7 +276,14 @@ class pts_render
 						$graph = new pts_graph_box_plot($result_object, $result_file, $extra_attributes);
 						break;
 					default:
-						$graph = new pts_graph_horizontal_bars($result_object, $result_file, $extra_attributes);
+						if($horizontal_bars)
+						{
+							$graph = new pts_graph_horizontal_bars($result_object, $result_file, $extra_attributes);
+						}
+						else
+						{
+							$graph = new pts_graph_vertical_bars($result_object, $result_file, $extra_attributes);
+						}
 						break;
 				}
 				break;
@@ -275,96 +294,57 @@ class pts_render
 
 		return $graph;
 	}
-	public static function report_system_notes_to_table(&$result_file, &$table)
+	public static function identifier_to_brand_color($identifier, $fallback_color = null)
 	{
-		$identifier_count = 0;
-		$system_attributes = array();
+		static $cache;
 
-		foreach($result_file->get_systems() as $s)
+		if(isset($cache[$identifier]))
 		{
-			$json = $s->get_json();
-			$identifier = $s->get_identifier();
-			$identifier_count++;
-
-			if(isset($json['kernel-parameters']) && $json['kernel-parameters'] != null)
-			{
-				$system_attributes['Kernel'][$identifier] = $json['kernel-parameters'];
-			}
-			if(isset($json['environment-variables']) && $json['environment-variables'] != null)
-			{
-				$system_attributes['Environment'][$identifier] = $json['environment-variables'];
-			}
-			if(isset($json['compiler-configuration']) && $json['compiler-configuration'] != null)
-			{
-				$system_attributes['Compiler'][$identifier] = $json['compiler-configuration'];
-			}
-			if(isset($json['disk-scheduler']) && isset($json['disk-mount-options']))
-			{
-				$system_attributes['Disk'][$identifier] = $json['disk-scheduler'] . ' / ' . $json['disk-mount-options'];
-				if(isset($json['disk-details']) && !empty($json['disk-details']))
-				{
-					$system_attributes['Disk'][$identifier] .= ' / ' . $json['disk-details'];
-				}
-			}
-			if(isset($json['cpu-scaling-governor']))
-			{
-				$system_attributes['Processor'][$identifier] = 'Scaling Governor: ' . $json['cpu-scaling-governor'];
-			}
-			if(isset($json['graphics-2d-acceleration']) || isset($json['graphics-aa']) || isset($json['graphics-af']))
-			{
-				$report = array();
-				foreach(array('graphics-2d-acceleration', 'graphics-aa', 'graphics-af') as $check)
-				{
-					if(isset($json[$check]) && !empty($json[$check]))
-					{
-						$report[] = $json[$check];
-					}
-				}
-
-				$system_attributes['Graphics'][$identifier] = implode(' - ' , $report);
-			}
-			if(isset($json['graphics-compute-cores']))
-			{
-				$system_attributes['OpenCL'][$identifier] = 'GPU Compute Cores: ' . $json['graphics-compute-cores'];
-			}
+			return $cache[$identifier] != null ? $cache[$identifier] : $fallback_color;
 		}
 
-		if(isset($system_attributes['compiler']) && count($system_attributes['compiler']) == 1 && ($result_file->get_system_count() > 1 && ($intent = pts_result_file_analyzer::analyze_result_file_intent($result_file, $intent, true)) && isset($intent[0]) && is_array($intent[0]) && array_shift($intent[0]) == 'Compiler') == false)
+		// See if the result identifier matches something to be color-coded better
+		$i = strtolower($identifier) . ' ';
+		if(strpos($i, 'geforce') !== false || strpos($i, 'nvidia') !== false || strpos($i, 'quadro') !== false || strpos($i, 'rtx ') !== false || strpos($i, 'gtx ') !== false)
 		{
-			// Only show compiler strings when it's meaningful (since they tend to be long strings)
-			unset($system_attributes['compiler']);
+			$paint_color = '#77b900';
+		}
+		else if(strpos($i, 'radeon') !== false || strpos($i, 'amd ') !== false || stripos($i, 'EPYC') !== false || strpos($i, 'opteron ') !== false || strpos($i, 'fx-') !== false || strpos($i, 'firepro ') !== false || strpos($i, 'ryzen ') !== false || strpos($i, 'threadripper ') !== false || strpos($i, 'a10-') !== false || strpos($i, 'athlon ') !== false || (strpos($i, 'r9 ') !== false && strpos($i, 'power9 ') === false) || strpos($i, 'r7 ') !== false || strpos($i, 'r9 ') !== false || strpos($i, 'hd 7') !== false || (strpos($i, 'rx ') !== false && strpos($i, 'thunderx ') === false))
+		{
+			$paint_color = '#f1052d';
+		}
+		else if(strpos($i, 'intel ') !== false || strpos($i, 'xeon ') !== false || strpos($i, 'core i') !== false || strpos($i, 'pentium') !== false || strpos($i, 'celeron') !== false)
+		{
+			$paint_color = '#0b5997';
+		}
+		else if(strpos($i, 'bsd') !== false)
+		{
+			$paint_color = '#850000';
+		}
+		else if(stripos($i, 'windows ') !== false || stripos($i, 'Microsoft') !== false)
+		{
+			$paint_color = '#373277';
+		}
+		else if(stripos($i, 'ec2 ') !== false || stripos($i, 'Amazon') !== false)
+		{
+			$paint_color = '#ff9900';
+		}
+		else if(stripos($i, 'google') !== false)
+		{
+			$paint_color = '#4885ed';
+		}
+		else if(stripos($i, 'arm ') !== false)
+		{
+			$paint_color = '#f6d452';
+		}
+		else
+		{
+			$paint_color = $fallback_color;
 		}
 
-		foreach($system_attributes as $index_name => $attributes)
-		{
-			$unique_attribue_count = count(array_unique($attributes));
+		$cache[$identifier] = $paint_color != $fallback_color ? $paint_color : null;
 
-			$section = $identifier_count > 1 ? ucwords($index_name) : null;
-
-			switch($unique_attribue_count)
-			{
-				case 0:
-					break;
-				case 1:
-					if($identifier_count == count($attributes))
-					{
-						// So there is something for all of the test runs and it's all the same...
-						$table->addTestNote(array_pop($attributes), null, $section);
-					}
-					else
-					{
-						// There is missing data for some test runs for this value so report the runs this is relevant to.
-						$table->addTestNote(implode(', ', array_keys($attributes)) . ': ' . array_pop($attributes), null, $section);
-					}
-					break;
-				default:
-					foreach($attributes as $identifier => $configuration)
-					{
-						$table->addTestNote($identifier . ': ' . $configuration, null, $section);
-					}
-					break;
-			}
-		}
+		return $paint_color;
 	}
 	protected static function report_test_notes_to_graph(&$graph, &$result_object)
 	{
@@ -468,6 +448,32 @@ class pts_render
 				break;
 		}
 
+		// Deduplicate the footnote if it's all the same across all tests
+		$same_footnote = null;
+		foreach($json as $identifier => &$data)
+		{
+			if(isset($data['install-footnote']) && $data['install-footnote'] != null)
+			{
+				if($same_footnote === null)
+				{
+					$same_footnote = $data['install-footnote'];
+					continue;
+				}
+
+				if($data['install-footnote'] != $same_footnote)
+				{
+					$same_footnote = null;
+					break;
+				}
+			}
+		}
+
+		if($same_footnote)
+		{
+			// Show the same footnote once rather than duplicated to all tests
+			$graph->addTestNote($same_footnote);
+		}
+
 		foreach($json as $identifier => &$data)
 		{
 			$graph_identifier_note = null;
@@ -485,7 +491,7 @@ class pts_render
 				$graph->addGraphIdentifierNote($identifier, $graph_identifier_note);
 			}
 
-			if(isset($data['install-footnote']) && $data['install-footnote'] != null)
+			if($same_footnote == null && isset($data['install-footnote']) && $data['install-footnote'] != null)
 			{
 				$graph->addTestNote($identifier . ': ' . $data['install-footnote']);
 			}
@@ -532,82 +538,6 @@ class pts_render
 		}
 
 		return $common_segments;
-	}
-	public static function generate_overview_object(&$overview_table, $overview_type)
-	{
-		switch($overview_type)
-		{
-			case 'GEOMETRIC_MEAN':
-				$title = 'Geometric Mean';
-				$math_call = array('pts_math', 'geometric_mean');
-				break;
-			case 'HARMONIC_MEAN':
-				$title = 'Harmonic Mean';
-				$math_call = array('pts_math', 'harmonic_mean');
-				break;
-			case 'AGGREGATE_SUM':
-				$title = 'Aggregate Sum';
-				$math_call = 'array_sum';
-				break;
-			default:
-				return false;
-
-		}
-		$result_buffer = new pts_test_result_buffer();
-
-		if($overview_table instanceof pts_result_file)
-		{
-			list($days_keys1, $days_keys, $shred) = pts_ResultFileTable::result_file_to_result_table($overview_table);
-
-			foreach($shred as $system_key => &$system)
-			{
-				$to_show = array();
-
-				foreach($system as &$days)
-				{
-					$days = $days->get_value();
-				}
-
-				$to_show[] = pts_math::set_precision(call_user_func($math_call, $system), 2);
-				$result_buffer->add_test_result($system_key, implode(',', $to_show), null);
-			}
-		}
-		else
-		{
-			$days_keys = null;
-			foreach($overview_table as $system_key => &$system)
-			{
-				if($days_keys == null)
-				{
-					// Rather messy and inappropriate way of getting the days keys
-					$days_keys = array_keys($system);
-					break;
-				}
-			}
-
-			foreach($overview_table as $system_key => &$system)
-			{
-				$to_show = array();
-
-				foreach($system as &$days)
-				{
-					$to_show[] = call_user_func($math_call, $days);
-				}
-
-				$result_buffer->add_test_result($system_key, implode(',', $to_show), null);
-			}
-		}
-
-		$test_profile = new pts_test_profile(null, null, false);
-		$test_profile->set_test_title($title);
-		$test_profile->set_result_scale($title);
-		$test_profile->set_display_format('BAR_GRAPH');
-
-		$test_result = new pts_test_result($test_profile);
-		$test_result->set_used_arguments_description('Analytical Overview');
-		$test_result->set_test_result_buffer($result_buffer);
-
-		return $test_result;
 	}
 	public static function multi_way_identifier_check($identifiers)
 	{

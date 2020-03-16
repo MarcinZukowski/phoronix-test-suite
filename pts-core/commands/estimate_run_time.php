@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2017, Phoronix Media
-	Copyright (C) 2017, Michael Larabel
+	Copyright (C) 2017 - 2019, Phoronix Media
+	Copyright (C) 2017 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 
 class estimate_run_time implements pts_option_interface
 {
-	const doc_section = 'Information';
+	const doc_section = 'Testing';
 	const doc_description = 'This option will provide estimates for test run-time / length.';
 
 	public static function argument_checks()
@@ -45,7 +45,7 @@ class estimate_run_time implements pts_option_interface
 		$test_count = 0;
 		foreach($args as $arg)
 		{
-			foreach(pts_types::identifiers_to_test_profile_objects($arg) as $t)
+			foreach(pts_types::identifiers_to_test_profile_objects($arg, false, false) as $t)
 			{
 				$tests[] = array($t->get_identifier(), pts_strings::format_time($t->get_estimated_run_time()));
 				$total_time += $t->get_estimated_run_time();

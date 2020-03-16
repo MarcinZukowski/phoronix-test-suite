@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2018, Phoronix Media
+	Copyright (C) 2008 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -159,7 +159,23 @@ class phoromatic_schedules implements pts_webui_interface
 
 				$main .= '<h1>' . $row['Title'] . '</h1>';
 				$main .= '<h3>' . $row['Description'] . '</h3>';
-				$main .= '<p>This schedule was last modified on <strong>' . date('j F Y \a\t H:i', strtotime($row['LastModifiedOn'])) . '</strong> by <strong>' . $row['LastModifiedBy'] . '</strong>.';
+				switch($row['RunPriority'])
+				{
+					case 1:
+						$prio = 'Low Priority';
+						break;
+					case 100:
+						$prio = 'Default Priority';
+						break;
+					case 200:
+						$prio = 'High Priority';
+						break;
+					default:
+						$prio = $row['RunPriority'] . ' Priority';
+						break;
+				}
+
+				$main .= '<p>Priority: ' . $prio . '</p><p>This schedule was last modified on <strong>' . date('j F Y \a\t H:i', strtotime($row['LastModifiedOn'])) . '</strong> by <strong>' . $row['LastModifiedBy'] . '</strong>.';
 
 				if(!PHOROMATIC_USER_IS_VIEWER)
 				{
@@ -285,14 +301,14 @@ class phoromatic_schedules implements pts_webui_interface
 					$main .= '<hr /><h2>Add A Test</h2>';
 					$main .= '<form action="?schedules/' . $PATH[0] . '" name="add_test" id="add_test" method="post">';
 					$main .= '<select name="add_to_schedule_select_test" id="add_to_schedule_select_test" onchange="phoromatic_schedule_test_details(\'\');">';
-					$dc = pts_strings::add_trailing_slash(pts_strings::parse_for_home_directory(pts_config::read_user_config('PhoronixTestSuite/Options/Installation/CacheDirectory', PTS_DOWNLOAD_CACHE_PATH)));
+					$dc = pts_client::download_cache_path();
 					$dc_exists = is_file($dc . 'pts-download-cache.json');
 					if($dc_exists)
 					{
 						$cache_json = file_get_contents($dc . 'pts-download-cache.json');
 						$cache_json = json_decode($cache_json, true);
 					}
-					foreach(pts_openbenchmarking::available_tests(false, true) as $test)
+					foreach(array_merge(pts_tests::local_tests(), pts_openbenchmarking::available_tests(false, true)) as $test)
 					{
 						if(phoromatic_server::read_setting('show_local_tests_only'))
 						{
@@ -307,7 +323,7 @@ class phoromatic_schedules implements pts_webui_interface
 									}
 								}
 							}
-							if(!$cache_checked && pts_test_install_request::test_files_in_cache($test, true, true) == false)
+							if(!$cache_checked && pts_test_install_request::test_files_available_on_local_system($test) == false)
 							{
 								continue;
 							}

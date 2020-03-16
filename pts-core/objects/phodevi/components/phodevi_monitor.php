@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2019, Phoronix Media
+	Copyright (C) 2008 - 2019, Michael Larabel
 	phodevi_monitor.php: The PTS Device Interface object for the display monitor
 
 	This program is free software; you can redistribute it and/or modify
@@ -23,29 +23,18 @@
 
 class phodevi_monitor extends phodevi_device_interface
 {
-	public static function read_property($identifier)
+	public static function properties()
 	{
-		switch($identifier)
-		{
-			case 'identifier':
-				$property = new phodevi_device_property('monitor_string', phodevi::smart_caching);
-				break;
-			case 'count':
-				$property = new phodevi_device_property('monitor_count', phodevi::std_caching);
-				break;
-			case 'layout':
-				$property = new phodevi_device_property('monitor_layout', phodevi::std_caching);
-				break;
-			case 'modes':
-				$property = new phodevi_device_property('monitor_modes', phodevi::std_caching);
-				break;
-		}
-
-		return $property;
+		return array(
+			'identifier' => new phodevi_device_property('monitor_string', phodevi::smart_caching),
+			'count' => new phodevi_device_property('monitor_count', phodevi::std_caching),
+			'layout' => new phodevi_device_property('monitor_layout', phodevi::std_caching),
+			'modes' => new phodevi_device_property('monitor_modes', phodevi::std_caching)
+			);
 	}
 	public static function monitor_string()
 	{
-		$monitor = null;
+		$monitor = array();
 
 		if(phodevi::is_macosx())
 		{
@@ -58,12 +47,15 @@ class phodevi_monitor extends phodevi_device_interface
 			{
 				$monitor = null;
 			}
+			else
+			{
+				$monitor = array($monitor);
+			}
 		}
 		else if(phodevi::is_nvidia_graphics() && isset(phodevi::$vfs->xorg_log))
 		{
 			$log_parse = phodevi::$vfs->xorg_log;
 			$offset = 0;
-			$monitor = array();
 
 			/* e.g.
 			$ cat /var/log/Xorg.0.log | grep -i connected
@@ -83,12 +75,6 @@ class phodevi_monitor extends phodevi_device_interface
 				}
 				$offset = $monitor_pos + 2;
 			}
-
-			// technically should be fine reporting multiple of the same monitor
-			// but fglrx/catalyst as of late 2013 is in habit of reporting monitors twice
-			$monitor = array_unique($monitor);
-
-			$monitor = implode(' + ', $monitor);
 		}
 		else if(isset(phodevi::$vfs->xorg_log))
 		{
@@ -106,12 +92,6 @@ class phodevi_monitor extends phodevi_device_interface
 					array_push($monitor, $m);
 				}
 			}
-
-			// technically should be fine reporting multiple of the same monitor
-			// but fglrx/catalyst as of late 2013 is in habit of reporting monitors twice
-			$monitor = array_unique($monitor);
-
-			$monitor = implode(' + ', $monitor);
 		}
 
 		if($monitor == null && phodevi::is_linux())
@@ -129,44 +109,56 @@ class phodevi_monitor extends phodevi_device_interface
 				}
 
 				$edid = bin2hex($edid_file);
-
-				$x = 0;
-				while($x = strpos($edid, '00fc', $x))
-				{
-					// 00fc indicates start of EDID monitor descriptor block
-					$encoded = substr($edid, $x + 4, 36);
-					$edid_monitor_name_block = null;
-					for($i = 0; $i < strlen($encoded); $i += 2)
-					{
-						$hex = substr($encoded, $i, 2);
-
-						if($hex == 15 || $hex == '0a')
-						{
-							break;
-						}
-
-						$ch = chr(hexdec($hex));
-						$edid_monitor_name_block .= $ch;
-					}
-					$edid_monitor_name_block = trim($edid_monitor_name_block);
-
-					if(pts_strings::string_only_contains($edid_monitor_name_block, (pts_strings::CHAR_LETTER | pts_strings::CHAR_NUMERIC | pts_strings::CHAR_DECIMAL | pts_strings::CHAR_SPACE | pts_strings::CHAR_DASH)))
-					{
-						$monitor = $edid_monitor_name_block;
-						break;
-					}
-
-					$x++;
-				}
-
-				if($monitor != null)
-				{
-					break;
-				}
+				$monitor[] = self::edid_monitor_parse($edid);
+			}
+		}
+		if($monitor == null && pts_client::executable_in_path('xrandr'))
+		{
+			$xrandr_props = shell_exec('xrandr --prop 2>&1');
+			if(($x = strpos($xrandr_props, 'EDID:')) !== false)
+			{
+				$xrandr_props = substr($xrandr_props, $x + 5);
+				$xrandr_props = substr($xrandr_props, 0, strpos($xrandr_props, ':'));
+				$xrandr_props = substr($xrandr_props, 0, strrpos($xrandr_props, PHP_EOL));
+				$xrandr_props = str_replace(array(' ', "\t", PHP_EOL), '', $xrandr_props);
+				$monitor[] = self::edid_monitor_parse($xrandr_props);
 			}
 		}
 
+		$monitor = pts_arrays::array_to_cleansed_item_string($monitor);
 		return empty($monitor) ? false : $monitor;
+	}
+	protected static function edid_monitor_parse($edid)
+	{
+		$x = 0;
+		$monitor = null;
+		while($x = strpos($edid, '00fc', $x))
+		{
+			// 00fc indicates start of EDID monitor descriptor block
+			$encoded = substr($edid, $x + 4, 36);
+			$edid_monitor_name_block = null;
+			for($i = 0; $i < strlen($encoded); $i += 2)
+			{
+				$hex = substr($encoded, $i, 2);
+
+				if($hex == 15 || $hex == '0a')
+				{
+					break;
+				}
+
+				$ch = chr(hexdec($hex));
+				$edid_monitor_name_block .= $ch;
+			}
+			$edid_monitor_name_block = trim($edid_monitor_name_block);
+
+			if(pts_strings::string_only_contains($edid_monitor_name_block, (pts_strings::CHAR_LETTER | pts_strings::CHAR_NUMERIC | pts_strings::CHAR_DECIMAL | pts_strings::CHAR_SPACE | pts_strings::CHAR_DASH)))
+			{
+				$monitor = $edid_monitor_name_block;
+				break;
+			}
+			$x++;
+		}
+		return $monitor;
 	}
 	public static function monitor_count()
 	{
@@ -194,19 +186,6 @@ class phodevi_monitor extends phodevi_device_interface
 					default:
 						$monitor_count = 1;
 						break;
-				}
-			}
-			else if(phodevi::is_ati_graphics() && phodevi::is_linux())
-			{
-				$amdpcsdb_enabled_monitors = phodevi_linux_parser::read_amd_pcsdb('SYSTEM/BUSID-*/DDX,EnableMonitor');
-				$amdpcsdb_enabled_monitors = pts_arrays::to_array($amdpcsdb_enabled_monitors);
-
-				foreach($amdpcsdb_enabled_monitors as $enabled_monitor)
-				{
-					foreach(pts_strings::comma_explode($enabled_monitor) as $monitor_connection)
-					{
-						$monitor_count++;
-					}
 				}
 			}
 			else
@@ -244,35 +223,6 @@ class phodevi_monitor extends phodevi_device_interface
 				else if($monitor_position_x == 0 && $monitor_position_y > 0)
 				{
 					array_push($monitor_layout, ($hit_0_0 ? 'LOWER' : 'UPPER'));
-				}
-			}
-
-			if(count($monitor_layout) == 1)
-			{
-				// Something went wrong with xdpy information, go to fallback support
-				if(phodevi::is_ati_graphics() && phodevi::is_linux())
-				{
-					$amdpcsdb_monitor_layout = phodevi_linux_parser::read_amd_pcsdb('SYSTEM/BUSID-*/DDX,DesktopSetup');
-					$amdpcsdb_monitor_layout = pts_arrays::to_array($amdpcsdb_monitor_layout);
-
-					foreach($amdpcsdb_monitor_layout as $card_monitor_configuration)
-					{
-						switch($card_monitor_configuration)
-						{
-							case 'horizontal':
-								array_push($monitor_layout, 'RIGHT');
-								break;
-							case 'horizontal,reverse':
-								array_push($monitor_layout, 'LEFT');
-								break;
-							case 'vertical':
-								array_push($monitor_layout, 'ABOVE');
-								break;
-							case 'vertical,reverse':
-								array_push($monitor_layout, 'BELOW');
-								break;
-						}
-					}
 				}
 			}
 		}

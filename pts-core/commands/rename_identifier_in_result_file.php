@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2015, Phoronix Media
-	Copyright (C) 2009 - 2015, Michael Larabel
+	Copyright (C) 2009 - 2019, Phoronix Media
+	Copyright (C) 2009 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -31,10 +31,6 @@ class rename_identifier_in_result_file implements pts_option_interface
 		new pts_argument_check(0, array('pts_types', 'is_result_file'), null)
 		);
 	}
-	public static function invalid_command($passed_args = null)
-	{
-		pts_tests::recently_saved_results();
-	}
 	public static function run($r)
 	{
 		$result = $r[0];
@@ -55,7 +51,7 @@ class rename_identifier_in_result_file implements pts_option_interface
 
 		$result_file->rename_run($rename_identifier, $rename_identifier_new);
 		pts_client::save_test_result($result_file->get_file_location(), $result_file->get_xml());
-		pts_client::display_web_page(PTS_SAVE_RESULTS_PATH . $r[0] . '/index.html');
+		pts_client::display_result_view($result_file, false);
 	}
 }
 

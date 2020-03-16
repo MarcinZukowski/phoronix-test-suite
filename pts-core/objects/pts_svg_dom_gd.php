@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2011 - 2016, Phoronix Media
-	Copyright (C) 2011 - 2016, Michael Larabel
+	Copyright (C) 2011 - 2020, Phoronix Media
+	Copyright (C) 2011 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -114,17 +114,24 @@ class pts_svg_dom_gd
 
 		return BILDE_DEFAULT_FONT;
 	}
+	public static function is_supported()
+	{
+		return (extension_loaded('gd') && function_exists('getimagesizefromstring')  && function_exists('imagettftext')) || (PTS_IS_CLIENT && (pts_client::executable_in_path('rsvg-convert') || pts_client::executable_in_path('inkscape')));
+	}
 	public static function svg_dom_to_gd($dom, $format)
 	{
-		if(extension_loaded('gd') && function_exists('imagettftext') && $dom->childNodes->item(2)->nodeName == 'svg')
+		if($dom->childNodes->item(2)->nodeName == 'svg')
 		{
 			$width = $dom->childNodes->item(2)->attributes->getNamedItem('width')->nodeValue;
 			$height = $dom->childNodes->item(2)->attributes->getNamedItem('height')->nodeValue;
 
-			if($width > 1 && $height > 1)
+			if(extension_loaded('gd') && function_exists('imagettftext') && $width > 1 && $height > 1)
 			{
 				$gd = imagecreatetruecolor($width, $height);
-
+				if(function_exists('imageresolution'))
+				{
+					imageresolution($gd, 200);
+				}
 				if(!isset($_REQUEST['svg_dom_gd_no_interlacing']))
 				{
 					// PHP FPDF fails on image interlacing
@@ -135,6 +142,38 @@ class pts_svg_dom_gd
 				{
 					imageantialias($gd, true);
 				}
+			}
+			else if(PTS_IS_CLIENT && pts_client::executable_in_path('rsvg-convert') && $format == 'PNG')
+			{
+				// Using Inkscape for converting SVG to PNG generally means higher quality conversion
+				$temp_svg = sys_get_temp_dir() . '/pts-temp-' . rand(0, 50000) . '.svg';
+				file_put_contents($temp_svg, $dom->saveXML());
+				$temp_png = sys_get_temp_dir() . '/pts-temp-' . rand(0, 50000) . '.png';
+				shell_exec('rsvg-convert -f png -o ' . $temp_png . ' ' . $temp_svg);
+				unlink($temp_svg);
+				if(is_file($temp_png))
+				{
+					$temp_png_output = file_get_contents($temp_png);
+					unlink($temp_png);
+					return $temp_png_output;
+				}
+				unlink($temp_png);
+			}
+			else if(PTS_IS_CLIENT && pts_client::executable_in_path('inkscape') && $format == 'PNG')
+			{
+				// Using Inkscape for converting SVG to PNG generally means higher quality conversion
+				$temp_svg = sys_get_temp_dir() . '/pts-temp-' . rand(0, 50000) . '.svg';
+				file_put_contents($temp_svg, $dom->saveXML());
+				$temp_png = sys_get_temp_dir() . '/pts-temp-' . rand(0, 50000) . '.png';
+				shell_exec('inkscape -z -e ' . $temp_png . ' -w ' . $width . ' -h ' . $height . ' ' . $temp_svg);
+				unlink($temp_svg);
+				if(is_file($temp_png))
+				{
+					$temp_png_output = file_get_contents($temp_png);
+					unlink($temp_png);
+					return $temp_png_output;
+				}
+				unlink($temp_png);
 			}
 			else
 			{
@@ -158,20 +197,17 @@ class pts_svg_dom_gd
 			//var_dump($node->attributes);
 		}
 
-		$tmp_output = tempnam('/tmp', 'pts-gd');
+		ob_start();
 		switch($format)
 		{
 			case 'JPEG':
-				imagejpeg($gd, $tmp_output, 100);
-				$output = file_get_contents($tmp_output);
-				unlink($tmp_output);
+				imagejpeg($gd);
 				break;
 			case 'PNG':
-				imagepng($gd, $tmp_output, 1);
-				$output = file_get_contents($tmp_output);
-				unlink($tmp_output);
+				imagepng($gd);
 				break;
 		}
+		$output = ob_get_clean();
 
 		return $output;
 	}

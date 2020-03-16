@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2015 - 2016, Phoronix Media
-	Copyright (C) 2015 - 2016, Michael Larabel
+	Copyright (C) 2015 - 2018, Phoronix Media
+	Copyright (C) 2015 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -165,35 +165,38 @@ class phoromatic_build_suite implements pts_webui_interface
 			$main .= '</script>
 			<h3>Add Another Test</h3>';
 			$main .= '<select name="add_to_suite_select_test" id="add_to_suite_select_test" onchange="phoromatic_build_suite_test_details();"><option value=""></option>';
-			$dc = pts_strings::add_trailing_slash(pts_strings::parse_for_home_directory(pts_config::read_user_config('PhoronixTestSuite/Options/Installation/CacheDirectory', PTS_DOWNLOAD_CACHE_PATH)));
+			$dc = pts_client::download_cache_path();
 			$dc_exists = is_file($dc . 'pts-download-cache.json');
 			if($dc_exists)
 			{
 				$cache_json = file_get_contents($dc . 'pts-download-cache.json');
 				$cache_json = json_decode($cache_json, true);
 			}
-			foreach(pts_openbenchmarking::available_tests(false, true) as $test)
+			foreach(array_merge(pts_tests::local_tests(), pts_openbenchmarking::available_tests(false, true)) as $test)
 			{
 				$cache_checked = false;
-				if($dc_exists)
+				if(phoromatic_server::read_setting('show_local_tests_only'))
 				{
-					if($cache_json && isset($cache_json['phoronix-test-suite']['cached-tests']))
+					if($dc_exists)
 					{
-						$cache_checked = true;
-						if(!in_array($test, $cache_json['phoronix-test-suite']['cached-tests']))
+						if($cache_json && isset($cache_json['phoronix-test-suite']['cached-tests']))
 						{
-							continue;
+							$cache_checked = true;
+							if(!in_array($test, $cache_json['phoronix-test-suite']['cached-tests']))
+							{
+								continue;
+							}
 						}
 					}
-				}
-				if(!$cache_checked && phoromatic_server::read_setting('show_local_tests_only') && pts_test_install_request::test_files_in_cache($test, true, true) == false)
-				{
-					continue;
+					if(!$cache_checked && phoromatic_server::read_setting('show_local_tests_only') && pts_test_install_request::test_files_available_on_local_system($test) == false)
+					{
+						continue;
+					}
 				}
 				$main .= '<option value="' . $test . '">' . $test . '</option>';
 			}
 			$main .= '</select>';
-			$main .= '<p align="right"><input name="submit" value="Create Suite" type="submit" onclick="return pts_rmm_validate_suite();" /></p>';
+			$main .= '<p align="right"><input name="submit" value="' . ($suite->get_title() != null ? 'Edit' : 'Create') .' Suite" type="submit" onclick="return pts_rmm_validate_suite();" /></p>';
 		}
 
 		echo '<div id="pts_phoromatic_main_area">' . $main . '</div>';

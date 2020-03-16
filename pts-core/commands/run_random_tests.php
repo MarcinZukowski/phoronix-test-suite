@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2014 - 2015, Phoronix Media
-	Copyright (C) 2014 - 2015, Michael Larabel
+	Copyright (C) 2014 - 2020, Phoronix Media
+	Copyright (C) 2014 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ class run_random_tests implements pts_option_interface
 		$allow_new_tests_to_be_installed = pts_user_io::prompt_bool_input('Allow new tests to be installed', true);
 		$allow_new_dependencies_to_be_installed = $allow_new_tests_to_be_installed ? pts_user_io::prompt_bool_input('Allow new test external dependencies to be installed', false) : false;
 		$limit_test_subsystem = pts_user_io::prompt_bool_input('Limit tests to a given subsystem', false);
-		$limit_test_subsystem = $limit_test_subsystem ? pts_user_io::prompt_text_menu('Select subsystem(s) to test', pts_types::subsystem_targets(), true) : false;
+		$limit_test_subsystem = $limit_test_subsystem ? pts_user_io::prompt_text_menu('Select subsystem(s) to test', pts_types::subsystem_targets(), true) : array();
 		$upload_to_openbenchmarking = pts_user_io::prompt_bool_input('Auto-upload test results to OpenBenchmarking.org', true);
 
 		while(1)
@@ -40,7 +40,7 @@ class run_random_tests implements pts_option_interface
 
 			if($limit_test_subsystem)
 			{
-				foreach(explode(',', $limit_test_subsystem) as $test_type)
+				foreach($limit_test_subsystem as $test_type)
 				{
 					$tests = pts_openbenchmarking_client::popular_tests(-1, $test_type);
 					$to_test = array_merge($to_test, $tests);
@@ -109,7 +109,7 @@ class run_random_tests implements pts_option_interface
 
 			if($limit_test_subsystem)
 			{
-				$subsystems_to_test = explode(',', $limit_test_subsystem);
+				$subsystems_to_test = $limit_test_subsystem;
 				$subsystems_to_avoid = array_diff(pts_types::subsystem_targets(), $subsystems_to_test);
 				pts_client::pts_set_environment_variable('SKIP_TESTING_SUBSYSTEMS', implode(',', $subsystems_to_avoid));
 			}
@@ -134,9 +134,9 @@ class run_random_tests implements pts_option_interface
 				$batch_mode_settings['UploadResults'] = true;
 				pts_openbenchmarking_client::override_client_setting('UploadSystemLogsByDefault', true);
 			}
-			pts_test_run_manager::set_batch_mode($batch_mode_settings);
 
 			$test_run_manager = new pts_test_run_manager($batch_mode_settings, 2);
+			$test_run_manager->set_batch_mode($batch_mode_settings);
 			if($test_run_manager->initial_checks($to_test) != false)
 			{
 				if($test_run_manager->load_tests_to_run($to_test))
@@ -145,14 +145,14 @@ class run_random_tests implements pts_option_interface
 					$test_run_manager->auto_save_results($title, null, 'Various open-source benchmarks by the ' . pts_core::program_title(true) . '.', true);
 					$test_run_manager->auto_generate_results_identifier();
 					echo PHP_EOL;
-					pts_client::$display->generic_sub_heading('Result File: ' . $test_run_manager->get_file_name());
-					pts_client::$display->generic_sub_heading('Result Identifier: ' . $test_run_manager->get_results_identifier());
+					pts_client::$display->generic_sub_heading(pts_client::cli_just_bold('Result File: ') . $test_run_manager->get_file_name());
+					pts_client::$display->generic_sub_heading(pts_client::cli_just_bold('Result Identifier: ') . $test_run_manager->get_results_identifier());
 
 					// BENCHMARK
 					$test_run_manager->pre_execution_process();
 					$test_run_manager->call_test_runs();
 					$test_run_manager->post_execution_process();
-					pts_client::remove_saved_result_file($test_run_manager->get_file_name());
+					pts_results::remove_saved_result_file($test_run_manager->get_file_name());
 				}
 			}
 

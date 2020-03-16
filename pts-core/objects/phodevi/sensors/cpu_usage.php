@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2016, Phoronix Media
-	Copyright (C) 2009 - 2016, Michael Larabel
+	Copyright (C) 2009 - 2018, Phoronix Media
+	Copyright (C) 2009 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ class cpu_usage extends phodevi_sensor
 		}
 
 		// Currently per-CPU monitoring is supported on Linux only.
-		return NULL;
+		return null;
 	}
 	public function read_sensor()
 	{
@@ -94,6 +94,10 @@ class cpu_usage extends phodevi_sensor
 		{
 			$percent = $this->cpu_usage_macosx();
 		}
+		else if(phodevi::is_windows())
+		{
+			$percent = phodevi_windows_parser::get_wmi_object('Win32_processor', 'LoadPercentage');
+		}
 
 		if(!isset($percent) || !is_numeric($percent) || $percent < 0 || $percent > 100)
 		{
@@ -104,10 +108,23 @@ class cpu_usage extends phodevi_sensor
 	}
 	private function cpu_usage_linux_bsd()
 	{
-		$start_load = self::cpu_load_array($this->cpu_to_monitor);
+		static $last_cpu_hit = -1;
+		static $cpu_stat_first = null;
+		static $cpu_stat_second = null;
+		if(($last_cpu_hit == $this->cpu_to_monitor || $cpu_stat_first == null) && is_file('/proc/stat'))
+		{
+			$cpu_stat_first = file_get_contents('/proc/stat');
+			usleep(500000);
+			$cpu_stat_second = file_get_contents('/proc/stat');
+
+		}
+		$start_load = self::cpu_load_array($cpu_stat_first);
 		//TODO make sleep duration configurable by envvar
-		usleep(500000);
-		$end_load = self::cpu_load_array($this->cpu_to_monitor);
+		if($cpu_stat_second == null)
+		{
+			usleep(500000);
+		}
+		$end_load = self::cpu_load_array($cpu_stat_second);
 
 		for($i = 0; $i < count($end_load); $i++)
 		{
@@ -136,14 +153,14 @@ class cpu_usage extends phodevi_sensor
 
 		return $percent;
 	}
-	private function cpu_load_array()
+	private function cpu_load_array($override_stat = null)
 	{
 		// CPU load array
 		$load = array();
 
 		if(phodevi::is_linux() && is_file('/proc/stat'))
 		{
-			$stat = file_get_contents('/proc/stat');
+			$stat = $override_stat != null ? $override_stat : file_get_contents('/proc/stat');
 
 			if($this->cpu_to_monitor === 'summary')
 			{

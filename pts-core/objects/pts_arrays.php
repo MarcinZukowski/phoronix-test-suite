@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2012, Phoronix Media
-	Copyright (C) 2008 - 2012, Michael Larabel
+	Copyright (C) 2008 - 2019, Phoronix Media
+	Copyright (C) 2008 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -48,6 +48,46 @@ class pts_arrays
 	public static function json_decode($str)
 	{
 		return json_decode($str, true);
+	}
+	public static function duplicates_in_array($array)
+	{
+		$duplicates = array();
+		foreach(array_count_values($array) as $item => $count)
+		{
+			if($count > 1)
+			{
+				$duplicates[] = $item;
+			}
+		}
+
+		return $duplicates;
+	}
+	public static function array_to_cleansed_item_string($items)
+	{
+		$items_formatted = $items;
+		$items = array();
+
+		for($i = 0; $i < count($items_formatted); $i++)
+		{
+			if(!empty($items_formatted[$i]))
+			{
+				$times_found = 1;
+
+				for($j = ($i + 1); $j < count($items_formatted); $j++)
+				{
+					if(isset($items_formatted[$j]) && $items_formatted[$i] == $items_formatted[$j])
+					{
+						$times_found++;
+						$items_formatted[$j] = '';
+					}
+				}
+				$item = ($times_found > 1 ? $times_found . ' x '  : null) . $items_formatted[$i];
+				array_push($items, $item);
+			}
+		}
+		$items = implode(' + ', $items);
+
+		return $items;
 	}
 }
 

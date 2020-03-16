@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2017, Phoronix Media
-	Copyright (C) 2009 - 2017, Michael Larabel
+	Copyright (C) 2009 - 2019, Phoronix Media
+	Copyright (C) 2009 - 2019, Michael Larabel
 	pts_ResultFileTable.php: The result file table object
 
 	This program is free software; you can redistribute it and/or modify
@@ -27,20 +27,20 @@ class pts_ResultFileTable extends pts_Table
 
 	public function __construct(&$result_file, $system_id_keys = null, $result_object_index = -1, $extra_attributes = null)
 	{
-		list($rows, $columns, $table_data) = self::result_file_to_result_table($result_file, $system_id_keys, $result_object_index, $this->flagged_results, $extra_attributes);
+		list($rows, $columns, $table_data) = pts_ResultFileTable::result_file_to_result_table($result_file, $system_id_keys, $result_object_index, $this->flagged_results, $extra_attributes);
 		parent::__construct($rows, $columns, $table_data, $result_file);
 		$this->result_object_index = $result_object_index;
 
 		if($result_object_index == -1)
 		{
-			$this->graph_title = $result_file->get_title();
+			$this->i['graph_title'] = $result_file->get_title();
 		}
 		else
 		{
 			$result_object = $result_file->get_result_objects($result_object_index);
 			if(isset($result_object[0]))
 			{
-				$this->graph_title = $result_object[0]->test_profile->get_title();
+				$this->i['graph_title'] = $result_object[0]->test_profile->get_title();
 				$this->graph_sub_titles[] = $result_object[0]->get_arguments_description();
 			}
 		}
@@ -74,7 +74,8 @@ class pts_ResultFileTable extends pts_Table
 		{
 			if($result_object->test_profile->get_identifier() == null)
 			{
-				continue;
+			// XXX FOR PTS 7.2 Let's try this to show all results, see how it works and revisit later TODO if doesn't look good
+			//	continue;
 			}
 
 			if($extra_attributes != null)
@@ -111,20 +112,23 @@ class pts_ResultFileTable extends pts_Table
 			}
 			else
 			{
-				$result_tests[$result_counter] = new pts_graph_ir_value($result_object->test_profile->get_identifier_base_name() . ': ' . $result_object->get_arguments_description());
-				$result_tests[$result_counter]->set_attribute('title', $result_object->get_arguments_description());
-
 				if($result_object->test_profile->get_identifier() != null)
 				{
-					$result_tests[$result_counter]->set_attribute('href', 'http://openbenchmarking.org/test/' . $result_object->test_profile->get_identifier());
+					$result_tests[$result_counter] = new pts_graph_ir_value($result_object->test_profile->get_identifier_base_name() . ': ' . $result_object->get_arguments_description_shortened(false));
+					$result_tests[$result_counter]->set_attribute('title', $result_object->get_arguments_description());
+					$result_tests[$result_counter]->set_attribute('href', 'https://openbenchmarking.org/test/' . $result_object->test_profile->get_identifier());
+				}
+				else if($result_object->test_profile->get_title() != null)
+				{
+					$result_tests[$result_counter] = new pts_graph_ir_value($result_object->test_profile->get_title() . ': ' . $result_object->get_arguments_description());
 				}
 			}
 
-			if($result_object->test_profile->get_identifier() == null)
+			if(false && $result_object->test_profile->get_identifier() == null)
 			{
 				if($result_object->test_profile->get_display_format() == 'BAR_GRAPH')
 				{
-					$result_tests[$result_counter]->set_attribute('alert', true);
+					//$result_tests[$result_counter]->set_attribute('alert', true);
 					foreach($result_object->test_result_buffer->get_buffer_items() as $index => $buffer_item)
 					{
 						$identifier = $buffer_item->get_result_identifier();
@@ -305,7 +309,7 @@ class pts_ResultFileTable extends pts_Table
 					{
 						$identifier = $buffer_item->get_result_identifier();
 						$values = pts_strings::comma_explode($buffer_item->get_result_value());
-						$avg_value = pts_math::set_precision(array_sum($values) / count($values), 2);
+						$avg_value = pts_math::set_precision(pts_math::arithmetic_mean($values), 2);
 						$result_table[$identifier][$result_counter] = new pts_graph_ir_value($avg_value);
 					}
 					break;

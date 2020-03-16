@@ -4,6 +4,7 @@
 	<ExternalDependencies>
 		<Information>
 			<Name>NetBSD</Name>
+			<PackageManager>pkg_add</PackageManager>
 		</Information>
 		<Package>
 			<GenericName>32bit-compatibility</GenericName>
@@ -21,6 +22,10 @@
 			<FileCheck>/usr/pkg/include/SDL/SDL.h, /usr/pkg/include/SDL/SDL_net.h, /usr/pkg/include/SDL/SDL_image.h</FileCheck>
 		</Package>
 		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>expat</PackageName>
+		</Package>
+		<Package>
 			<GenericName>glut</GenericName>
 			<PackageName>glut</PackageName>
 			<FileCheck>/usr/pkg/lib/libglut.la, /usr/pkg/include/GL/glut.h</FileCheck>
@@ -30,9 +35,13 @@
 			<PackageName>png</PackageName>
 			<FileCheck>/usr/pkg/include/png.h</FileCheck>
 		</Package>
+                <Package>
+			<GenericName>golang</GenericName>
+			<PackageName>go</PackageName>
+		</Package>
 		<Package>
 			<GenericName>build-utilities</GenericName>
-			<PackageName>gcc</PackageName>
+			<PackageName>gcc gmake automake autoconf bash</PackageName>
 			<FileCheck>/usr/bin/gcc</FileCheck>
 		</Package>
 		<Package>

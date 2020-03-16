@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2010 - 2016, Phoronix Media
-	Copyright (C) 2010 - 2016, Michael Larabel
+	Copyright (C) 2010 - 2018, Phoronix Media
+	Copyright (C) 2010 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -49,6 +49,20 @@ class pts_types
 	public static function operating_systems()
 	{
 		return array(array('Linux'), array('Solaris', 'Sun'), array('BSD', 'DragonFly'), array('MacOSX', 'Darwin'), array('Windows'), array('Hurd', 'GNU'));
+	}
+	public static function known_architectures()
+	{
+		return array('x86_64', 'i686', 'arm', 'ppc', 'sparc', 'ppc64', 'aarch64', '');
+	}
+	public static function known_operating_systems()
+	{
+		return array('Linux', 'Windows', 'BSD', 'MacOSX', 'Solaris', '');
+	}
+	public static function all_possible_external_dependencies()
+	{
+		$possible_deps = PTS_IS_CLIENT ? pts_external_dependencies::all_dependency_names() : array();
+		$possible_deps[] = '';
+		return $possible_deps;
 	}
 	public static function identifiers_to_test_profile_objects($identifiers, $include_extensions = false, $remove_duplicates = true, &$archive_unknown_objects = false)
 	{
@@ -110,61 +124,84 @@ class pts_types
 		// Provide an array containing the location(s) of all test(s) for the supplied object name
 		$objects = array();
 
+		if(PTS_IS_CLIENT && !defined('CACHE_CHECK_FORCED'))
+		{
+			define('CACHE_CHECK_FORCED', true);
+			pts_openbenchmarking::refresh_repository_lists(null);
+		}
+
 		foreach(pts_arrays::to_array($identifiers) as $identifier_item)
 		{
-			if($identifier_item instanceof pts_test_profile || $identifier_item instanceof pts_test_suite || $identifier_item instanceof pts_result_file)
+			if(!self::eval_identifier_to_obj_array($objects, $identifier_item))
 			{
-				$objects[] = $identifier_item;
-			}
-			else if(PTS_IS_CLIENT && $identifier_item instanceof pts_virtual_test_queue)
-			{
-				// Object is a virtual suite
-				$objects[] = $identifier_item;
-			}
-			else if(($tp_identifier = pts_test_profile::is_test_profile($identifier_item)))
-			{
-				// Object is a test
-				$objects[] = new pts_test_profile($tp_identifier);
-			}
-			else if(pts_test_suite::is_suite($identifier_item))
-			{
-				// Object is a suite
-				$objects[] = new pts_test_suite($identifier_item);
-			}
-			else if(pts_result_file::is_test_result_file($identifier_item))
-			{
-				// Object is a saved results file
-				$objects[] = new pts_result_file($identifier_item);
-			}
-			else if(pts_openbenchmarking::is_openbenchmarking_result_id($identifier_item))
-			{
-				// Object is an OpenBenchmarking.org result
-				// Clone it locally so it's just handled like a pts_result_file
-				$success = pts_openbenchmarking::clone_openbenchmarking_result($identifier_item);
-
-				if($success)
+				if(is_array($archive_unknown_objects))
 				{
-					$objects[] = new pts_result_file($identifier_item);
+					// Unknown / nothing / broken
+					$archive_unknown_objects[] = $identifier_item;
 				}
-			}
-			else if(PTS_IS_CLIENT && pts_virtual_test_suite::is_virtual_suite($identifier_item))
-			{
-				// Object is a virtual suite
-				$objects[] = new pts_virtual_test_suite($identifier_item);
-			}
-			else if(pts_test_suite::is_temporary_suite($identifier_item))
-			{
-				// Object is a temporary test suite
-				$objects[] = new pts_test_suite($identifier_item);
-			}
-			else if(is_array($archive_unknown_objects))
-			{
-				// Unknown / nothing / broken
-				$archive_unknown_objects[] = $identifier_item;
 			}
 		}
 
 		return $objects;
+	}
+	protected static function eval_identifier_to_obj_array(&$objects, &$identifier_item)
+	{
+		if($identifier_item instanceof pts_test_profile || $identifier_item instanceof pts_test_suite || $identifier_item instanceof pts_result_file)
+		{
+			$objects[] = $identifier_item;
+		}
+		else if(PTS_IS_CLIENT && $identifier_item instanceof pts_virtual_test_queue)
+		{
+			// Object is a virtual suite
+			$objects[] = $identifier_item;
+		}
+		else if(($tp_identifier = pts_test_profile::is_test_profile($identifier_item)))
+		{
+			// Object is a test
+			$objects[] = new pts_test_profile($tp_identifier);
+		}
+		else if(pts_test_suite::is_suite($identifier_item))
+		{
+			// Object is a suite
+			$objects[] = new pts_test_suite($identifier_item);
+		}
+		else if(pts_results::is_saved_result_file($identifier_item))
+		{
+			// Object is a saved results file
+			$objects[] = new pts_result_file($identifier_item);
+		}
+		else if(pts_openbenchmarking::is_openbenchmarking_result_id($identifier_item))
+		{
+			// Object is an OpenBenchmarking.org result
+			// Clone it locally so it's just handled like a pts_result_file
+			$success = pts_openbenchmarking::clone_openbenchmarking_result($identifier_item);
+
+			if($success)
+			{
+				$objects[] = new pts_result_file($identifier_item);
+			}
+		}
+		else if(PTS_IS_CLIENT && pts_openbenchmarking::remote_test_profile_check($identifier_item) && ($tp_identifier = pts_test_profile::is_test_profile($identifier_item)))
+		{
+			// Object is a test profile fetched from a remote OpenBenchmarking / Phoromatic Server
+			$objects[] = new pts_test_profile($tp_identifier);
+		}
+		else if(PTS_IS_CLIENT && pts_virtual_test_suite::is_virtual_suite($identifier_item))
+		{
+			// Object is a virtual suite
+			$objects[] = new pts_virtual_test_suite($identifier_item);
+		}
+		else if(pts_test_suite::is_temporary_suite($identifier_item))
+		{
+			// Object is a temporary test suite
+			$objects[] = new pts_test_suite($identifier_item);
+		}
+		else
+		{
+			return false;
+		}
+
+		return true;
 	}
 	public static function identifier_to_object($identifier)
 	{
@@ -184,7 +221,7 @@ class pts_types
 	{
 		$values = array();
 		$dom = new DOMDocument();
-		$dom->load(PTS_OPENBENCHMARKING_PATH . 'schemas/types.xsd');
+		$dom->load(pts_openbenchmarking::openbenchmarking_standards_path() . 'schemas/types.xsd');
 		$types = $dom->getElementsByTagName('schema')->item(0)->getElementsByTagName('simpleType');
 
 		for($i = 0; $i < $types->length; $i++)

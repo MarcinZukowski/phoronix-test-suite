@@ -29,6 +29,10 @@
 			<FileCheck>/usr/include/cairo/cairo.h</FileCheck>
 		</Package>
 		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>expat</PackageName>
+		</Package>
+		<Package>
 			<GenericName>glut</GenericName>
 			<PackageName>libmesaglut3-devel</PackageName>
 			<FileCheck>/usr/include/GL/glut.h</FileCheck>
@@ -70,7 +74,7 @@
 		</Package>
 		<Package>
 			<GenericName>java</GenericName>
-			<PackageName>java-1.6.0-sun</PackageName>
+			<PackageName>java-1.8.0-sun</PackageName>
 			<FileCheck>/usr/bin/java</FileCheck>
 		</Package>
 		<Package>
@@ -237,6 +241,10 @@
 			<GenericName>gmp-library</GenericName>
 			<PackageName>libgmp3</PackageName>
 			<FileCheck>/usr/include/gmp.h</FileCheck>
+		</Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<PackageName>wine</PackageName>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

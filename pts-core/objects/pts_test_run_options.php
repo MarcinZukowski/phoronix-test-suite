@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2010 - 2016, Phoronix Media
-	Copyright (C) 2010 - 2016, Michael Larabel
+	Copyright (C) 2010 - 2020 Phoronix Media
+	Copyright (C) 2010 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 
 class pts_test_run_options
 {
-	public static function prompt_user_options(&$test_profile, $preset_selections = null)
+	public static function prompt_user_options(&$test_profile, $preset_selections = null, $no_prompts = false)
 	{
 		$user_args = array();
 		$text_args = array();
@@ -36,6 +36,16 @@ class pts_test_run_options
 			// Multiple preset options can be delimited with the PRESET_OPTIONS environment variable via a semicolon ;
 			$preset_selections = pts_client::parse_value_string_double_identifier($cli_presets_env);
 		}
+		if(($cli_presets_env_values = pts_client::read_env('PRESET_OPTIONS_VALUES')) != false)
+		{
+			// To specify test options externally from an environment variable
+			// i.e. PRESET_OPTIONS_VALUES='stream.run-type=Add' ./phoronix-test-suite benchmark stream
+			// The string format is <test-name>.<test-option-name-from-XML-file>=<test-option-value>
+			// The test-name can either be the short/base name (e.g. stream) or the full identifier (pts/stream) without version postfix
+			// Multiple preset options can be delimited with the PRESET_OPTIONS environment variable via a semicolon ;
+			$preset_selections_values = pts_client::parse_value_string_double_identifier($cli_presets_env_values);
+		}
+
 
 		$identifier_short = $test_profile->get_identifier_base_name();
 		$identifier_full = $test_profile->get_identifier(false);
@@ -49,7 +59,23 @@ class pts_test_run_options
 		{
 			$option_identifier = $o->get_identifier();
 
-			if($o->option_count() == 0)
+			if(!empty($preset_selections_values) && isset($preset_selections_values[$identifier_short][$option_identifier]))
+			{
+				$b = explode(',', $preset_selections_values[$identifier_short][$option_identifier]);
+				foreach($b as &$a)
+				{
+					$a = $o->format_option_display_from_input($a);
+				}
+				$text_args[] = $b;
+
+				$b = explode(',', $preset_selections_values[$identifier_short][$option_identifier]);
+				foreach($b as &$a)
+				{
+					$a = $o->format_option_value_from_input($a);
+				}
+				$user_args[] = $b;
+			}
+			else if($o->option_count() == 0)
 			{
 				// User inputs their option as there is nothing to select
 				if(isset($preset_selections[$identifier_short][$option_identifier]))
@@ -62,10 +88,25 @@ class pts_test_run_options
 					$value = $preset_selections[$identifier_full][$option_identifier];
 					echo PHP_EOL . '    Using Pre-Set Run Option: ' . $value . PHP_EOL;
 				}
+				else if($no_prompts)
+				{
+					$value = null;
+				}
 				else
 				{
-					echo PHP_EOL . $o->get_name() . PHP_EOL;
-					$value = pts_user_io::prompt_user_input('Enter Value');
+					echo PHP_EOL . pts_client::$display->get_tab() . pts_client::cli_just_bold($o->get_name()) . ($o->get_helper_message() ? ' [' . pts_client::cli_just_italic($o->get_helper_message()) . ']' : null) . PHP_EOL;
+					if($o->get_identifier() == 'positive-number')
+					{
+						do
+						{
+							$value = pts_user_io::prompt_user_input('Enter Positive Number', false, false, pts_client::$display->get_tab());
+						}
+						while($value <= 0 || !is_numeric($value));
+					}
+					else
+					{
+						$value = pts_user_io::prompt_user_input('Enter Value', false, false, pts_client::$display->get_tab());
+					}
 				}
 
 				$text_args[] = array($o->format_option_display_from_input($value));
@@ -84,17 +125,24 @@ class pts_test_run_options
 					$bench_choice = $preset_selections[$identifier_full][$option_identifier];
 					echo PHP_EOL . '    Using Pre-Set Run Option: ' . $bench_choice . PHP_EOL;
 				}
+				else if($no_prompts)
+				{
+					$bench_choice = array_keys($option_names);
+				}
 				else
 				{
 					$option_names = $o->get_all_option_names_with_messages();
 
 					if(count($option_names) > 1)
 					{
-						//echo PHP_EOL . $o->get_name() . ':' . PHP_EOL;
 						$option_names[] = 'Test All Options';
 					}
-
-					$bench_choice = pts_user_io::prompt_text_menu($o->get_name(), $option_names, true, true, pts_client::$display->get_tab() . pts_client::$display->get_tab());
+					$o_name = $o->get_name();
+					if($o->get_helper_message() != null)
+					{
+						$o_name .= ' [' . pts_client::cli_just_italic($o->get_helper_message()) . ']';
+					}
+					$bench_choice = implode(',', pts_user_io::prompt_text_menu($o_name, $option_names, true, true, pts_client::$display->get_tab() . pts_client::$display->get_tab()));
 					echo PHP_EOL;
 				}
 
@@ -216,7 +264,7 @@ class pts_test_run_options
 			}
 		}
 	}
-	public static function auto_process_test_option($test_identifier, $option_identifier, &$option_names, &$option_values, &$option_messages)
+	public static function auto_process_test_option(&$test_profile, $option_identifier, &$option_names, &$option_values, &$option_messages)
 	{
 		// Some test items have options that are dynamically built
 		switch($option_identifier)
@@ -280,7 +328,7 @@ class pts_test_run_options
 				{
 					$all_devices = array();
 				}*/
-				$all_devices = array_merge(pts_file_io::glob('/dev/hd*'), pts_file_io::glob('/dev/sd*'), pts_file_io::glob('/dev/md*'), pts_file_io::glob('/dev/nvme*'));
+				$all_devices = array_merge(pts_file_io::glob('/dev/hd*'), pts_file_io::glob('/dev/sd*'), pts_file_io::glob('/dev/vd*'), pts_file_io::glob('/dev/md*'), pts_file_io::glob('/dev/nvme*'),  pts_file_io::glob('/dev/pmem*'));
 
 				foreach($all_devices as &$device)
 				{
@@ -318,6 +366,19 @@ class pts_test_run_options
 							$option_names[] = $mount_point; // ' [' . $partition_d . ']'
 						}
 					}
+					
+					// ZFS only
+					$mounts_arr = explode("\n", $mounts);
+					
+					foreach($mounts_arr as $mount)
+					{
+						$mount_arr = explode(' ', $mount);
+						if(isset($mount_arr[2]) && $mount_arr[2] == 'zfs')
+						{
+							$option_values[] = $mount_arr[1];
+							$option_names[] = $mount_arr[1];
+						}
+					}
 				}
 				else
 				{
@@ -333,11 +394,11 @@ class pts_test_run_options
 					return;
 				}
 
-				$all_devices = array_merge(pts_file_io::glob('/dev/hd*'), pts_file_io::glob('/dev/sd*'), pts_file_io::glob('/dev/md*'), pts_file_io::glob('/dev/nvme*'));
+				$all_devices = array_merge(pts_file_io::glob('/dev/hd*'), pts_file_io::glob('/dev/sd*'), pts_file_io::glob('/dev/vd*'), pts_file_io::glob('/dev/md*'), pts_file_io::glob('/dev/nvme*'),  pts_file_io::glob('/dev/pmem*'));
 
 				foreach($all_devices as $i => &$device)
 				{
-					if(is_numeric(substr($device, -1)))
+					if(is_numeric(substr($device, -1)) && strpos($device, '/dev/md') === false)
 					{
 						unset($all_devices[$i]);
 					}
@@ -387,6 +448,27 @@ class pts_test_run_options
 					}
 				}
 				break;
+			case 'auto-executable':
+				if(PTS_IS_CLIENT == false)
+				{
+					//echo 'ERROR: This option is not supported in this configuration.';
+					return;
+				}
+
+				$names = $option_names;
+				$values = $option_values;
+				$option_names = array();
+				$option_values = array();
+
+				for($i = 0; $i < count($names) && $i < count($values); $i++)
+				{
+					if(is_executable($values[$i]) || pts_client::executable_in_path($values[$i]))
+					{
+						$option_names[] = $names[$i];
+						$option_values[] = $values[$i];
+					}
+				}
+				break;
 			case 'auto-directory-select':
 				if(PTS_IS_CLIENT == false)
 				{
@@ -401,14 +483,161 @@ class pts_test_run_options
 
 				for($i = 0; $i < count($names) && $i < count($values); $i++)
 				{
-					if(is_dir($values[$i]) && is_writable($removable_media[$i]))
+					if(is_dir($values[$i]) && is_writable($values[$i]))
 					{
 						$option_names[] = $names[$i];
 						$option_values[] = $values[$i];
 					}
 				}
 				break;
+			case 'cpu-threads':
+				if(PTS_IS_CLIENT == false)
+				{
+					return;
+				}
+
+				$option_names = array();
+				$option_values = array();
+
+				for($i = 1; $i <= phodevi::read_property('cpu', 'core-count'); $i *= 2)
+				{
+					$option_names[] = $i;
+					$option_values[] = $i;
+				}
+				if(!in_array(phodevi::read_property('cpu', 'core-count'), $option_names))
+				{
+					$option_names[] = phodevi::read_property('cpu', 'core-count');
+					$option_values[] = phodevi::read_property('cpu', 'core-count');
+				}
+				break;
+			case 'cpu-physical-threads':
+				if(PTS_IS_CLIENT == false)
+				{
+					return;
+				}
+
+				$option_names = array();
+				$option_values = array();
+
+				for($i = 1; $i <= phodevi::read_property('cpu', 'physical-core-count'); $i *= 2)
+				{
+					$option_names[] = $i;
+					$option_values[] = $i;
+				}
+				if(!in_array(phodevi::read_property('cpu', 'physical-core-count'), $option_names))
+				{
+					$option_names[] = phodevi::read_property('cpu', 'physical-core-count');
+					$option_values[] = phodevi::read_property('cpu', 'physical-core-count');
+				}
+				break;
+			case 'ram-capacity':
+				if(PTS_IS_CLIENT == false)
+				{
+					return;
+				}
+
+				$option_names = array();
+				$option_values = array();
+
+				for($i = 32; $i < phodevi::read_property('memory', 'capacity'); $i *= 2)
+				{
+					if($i >= 1024)
+					{
+						$pretty = round($i / 1024) . 'GB';
+					}
+					else
+					{
+						$pretty = $i . 'MB';
+					}
+					$option_names[] = $pretty;
+					$option_values[] = $i;
+				}
+				break;
+			case 'renderer':
+				if(PTS_IS_CLIENT == false)
+				{
+					return;
+				}
+
+				$names = $option_names;
+				$values = $option_values;
+				$option_names = array();
+				$option_values = array();
+
+				for($i = 0; $i < count($names) && $i < count($values); $i++)
+				{
+					if(self::validate_test_arguments_compatibility($names[$i], $test_profile) == false)
+					{
+						continue;
+					}
+
+					$option_names[] = $names[$i];
+					$option_values[] = $values[$i];
+				}
+				break;
+			default:
+				if(PTS_IS_CLIENT == false)
+				{
+					return;
+				}
+
+				$names = $option_names;
+				$values = $option_values;
+				$option_names = array();
+				$option_values = array();
+
+				for($i = 0; $i < count($names) && $i < count($values); $i++)
+				{
+					if(self::validate_test_arguments_compatibility($names[$i], $test_profile) == false)
+					{
+						continue;
+					}
+
+					$option_names[] = $names[$i];
+					$option_values[] = $values[$i];
+				}
+				break;
 		}
+	}
+	public static function validate_test_arguments_compatibility($test_args, &$test_profile, &$error = null)
+	{
+		if(PTS_IS_CLIENT == false)
+		{
+			return true;
+		}
+
+		if((stripos($test_args, 'Direct3D') !== false || stripos($test_args, 'D3D') !== false) && phodevi::os_under_test() != 'Windows' && !in_array('wine', $test_profile->get_external_dependencies()))
+		{
+			// Only show Direct3D renderer options when running on Windows or similar (i.e. Wine)
+			$error = 'Direct3D renderer is not supported here.';
+			return false;
+		}
+		if((stripos($test_args, 'NVIDIA ') !== false || stripos($test_args . ' ', 'CUDA ') !== false) && stripos(phodevi::read_property('gpu', 'model'), 'NVIDIA') === false)
+		{
+			// Only show NVIDIA / CUDA options when running with NVIDIA hardware
+			$error = 'NVIDIA CUDA support is not available.';
+			return false;
+		}
+		if((stripos($test_args, 'NVIDIA ') !== false || stripos($test_args . ' ', 'CUDA ') !== false) && stripos(phodevi::read_property('gpu', 'model'), 'NVIDIA') === false)
+		{
+			// Only show NVIDIA / CUDA options when running with NVIDIA hardware
+			$error = 'NVIDIA support is not available.';
+			return false;
+		}
+		if(stripos($test_args, 'Windows') !== false && !phodevi::is_windows())
+		{
+			// Do not show options mentioning Windows if not on Windows
+			$error = 'Windows option is not available.';
+			return false;
+		}
+		if(stripos($test_args, 'Linux') !== false && !phodevi::is_linux())
+		{
+			// Do not show options mentioning Linux if not on Linux
+			$error = 'Linux support is not available.';
+			return false;
+		}
+
+		return true;
 	}
 }
 

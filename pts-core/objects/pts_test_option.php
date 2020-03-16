@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2020, Phoronix Media
+	Copyright (C) 2008 - 2020, Michael Larabel
 	pts_test_option: An object used for storing a test option and its possible values
 
 	This program is free software; you can redistribute it and/or modify
@@ -28,12 +28,14 @@ class pts_test_option
 	private $prefix = null;
 	private $postfix = null;
 	private $default_entry = -1;
+	private $helper_message = null;
 	private $options = array();
 
-	public function __construct($identifier, $option)
+	public function __construct($identifier, $option, $helper_message = null)
 	{
 		$this->identifier = $identifier;
 		$this->option_name = $option;
+		$this->helper_message = $helper_message;
 	}
 	public function set_option_prefix($prefix)
 	{
@@ -45,7 +47,7 @@ class pts_test_option
 	}
 	public function set_option_default($default_node)
 	{
-		if($default_node == null)
+		if($default_node == null || $default_node == "0")
 			$default_node = 1;
 
 		$default_node--;
@@ -54,9 +56,17 @@ class pts_test_option
 			$this->default_entry = $default_node;
 		}
 	}
+	public function get_option_identifier()
+	{
+		return $this->identifier;
+	}
 	public function get_identifier()
 	{
 		return $this->identifier;
+	}
+	public function get_helper_message()
+	{
+		return $this->helper_message;
 	}
 	public function get_name()
 	{
@@ -74,13 +84,17 @@ class pts_test_option
 	{
 		return $this->default_entry == -1 ? 0 : $this->default_entry;
 	}
+	public function get_default_entry()
+	{
+		return $this->default_entry;
+	}
 	public function get_option_default()
 	{		
 		return $this->default_entry == -1 ? $this->option_count() - 1 : $this->default_entry;
 	}
 	public function add_option($name, $value, $message)
 	{
-		$this->options[] = array($name, $value, $message);
+		$this->options[] = array('NAME' => $name, 'VALUE' => $value, 'MESSAGE' => $message);
 	}
 	public function get_options_array()
 	{
@@ -111,15 +125,15 @@ class pts_test_option
 	}
 	public function get_option_name($index)
 	{
-		return isset($this->options[$index][0]) ? $this->options[$index][0] : null;
+		return isset($this->options[$index]['NAME']) ? $this->options[$index]['NAME'] : null;
 	}
 	public function get_option_value($index)
 	{
-		return isset($this->options[$index][1]) ? $this->options[$index][1] : null;
+		return isset($this->options[$index]['VALUE']) ? $this->options[$index]['VALUE'] : null;
 	}
 	public function get_option_message($index)
 	{
-		return isset($this->options[$index][2]) ? $this->options[$index][2] : null;
+		return isset($this->options[$index]['MESSAGE']) ? $this->options[$index]['MESSAGE'] : null;
 	}
 	public function option_count()
 	{

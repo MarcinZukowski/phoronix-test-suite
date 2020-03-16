@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2010 - 2017, Phoronix Media
-	Copyright (C) 2010 - 2017, Michael Larabel
+	Copyright (C) 2010 - 2019, Phoronix Media
+	Copyright (C) 2010 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,21 +22,8 @@
 
 class pts_test_result_parser
 {
-	private static $supported_sensors = null;
 	private static $monitoring_sensors = array();
 
-	protected static function setup_parse_xml_file(&$test_profile)
-	{
-		$parse_xml_file = $test_profile->get_file_parser_spec();
-
-		if($parse_xml_file == false)
-		{
-			return false;
-		}
-
-		$xml_options = LIBXML_COMPACT | LIBXML_PARSEHUGE;
-		return simplexml_load_file($parse_xml_file, 'SimpleXMLElement', $xml_options);
-	}
 	protected static function gen_result_active_handle(&$root_result, $test_result = null)
 	{
 		if($test_result == null)
@@ -55,100 +42,81 @@ class pts_test_result_parser
 	}
 	public static function system_monitor_task_check(&$test_run_request)
 	{
-		$xml = self::setup_parse_xml_file($test_run_request->test_profile);
-
-		if($xml === false)
-		{
-			return false;
-		}
-
+		$definitions = $test_run_request->test_profile->get_results_definition('SystemMonitor');
 		self::$monitoring_sensors = array();
 		$test_directory = $test_run_request->test_profile->get_install_dir();
 
-		if($xml->SystemMonitor)
+		foreach($definitions->get_system_monitor_definitions() as $sys_monitor)
 		{
-			foreach($xml->SystemMonitor as $sys_monitor)
+			$sensor = $sys_monitor->get_sensor();
+			$polling_freq = $sys_monitor->get_polling_frequency();
+			$report_as = $sys_monitor->get_report();
+
+			// TODO: Right now we are looping through SystemMonitor tags, but right now pts-core only supports providing one monitor sensor as the result
+			$sensor = explode('.', $sensor);
+
+			if($sensor == array('sys', 'time'))
 			{
-				$sensor = isset($sys_monitor->Sensor) ? $sys_monitor->Sensor->__toString() : null;
-				$polling_freq = isset($sys_monitor->PollingFrequency) ? $sys_monitor->PollingFrequency->__toString() : null;
-				$report_as = isset($sys_monitor->Report) ? $sys_monitor->Report->__toString() : null;
+				// sys.time is a special case since we are just timing the test length and thus don't need to fork the thread
+				$start_time = microtime(true);
+				self::$monitoring_sensors[] = array(0, $sensor, null, $start_time);
+				continue;
+			}
 
-				// TODO: Right now we are looping through SystemMonitor tags, but right now pts-core only supports providing one monitor sensor as the result
-				$sensor = explode('.', $sensor);
+			if(count($sensor) != 2 || !phodevi::is_sensor_supported($sensor))
+			{
+				// Not a sensor or it's not supported
+				pts_client::test_profile_debug_message('No supported sensor found');
+				continue;
+			}
 
-				if($sensor == array('sys', 'time'))
+			if(!is_numeric($polling_freq) || $polling_freq < 0.5)
+			{
+				pts_client::test_profile_debug_message('No polling frequency defined, defaulting to 2 seconds');
+				$polling_freq = 2;
+			}
+
+			$polling_freq *= 1000000; // Convert from seconds to micro-seconds
+			if(!in_array($report_as, array('ALL', 'MAX', 'MIN', 'AVG')))
+			{
+				// Not a valid reporting type
+				pts_client::test_profile_debug_message('No valid Report entry found.');
+				continue;
+			}
+			if(!function_exists('pcntl_fork'))
+			{
+				pts_client::$display->test_run_instance_error('PHP with PCNTL support enabled is required for this test.');
+				return false;
+			}
+
+			$monitor_file = tempnam($test_directory, '.monitor');
+			$pid = pcntl_fork();
+
+			if($pid != -1)
+			{
+				if($pid)
 				{
-					// sys.time is a special case since we are just timing the test length and thus don't need to fork the thread
-					$start_time = microtime(true);
-					self::$monitoring_sensors[] = array(0, $sensor, null, $start_time);
+					// Main process still
+					self::$monitoring_sensors[] = array($pid, $sensor, $report_as, $monitor_file);
 					continue;
 				}
-
-				if(self::$supported_sensors == null)
+				else
 				{
-					// Cache this since this shouldn't change between tests/runs
-					self::$supported_sensors = phodevi::supported_sensors();
-				}
-
-				if(count($sensor) != 2 || !in_array($sensor, self::$supported_sensors))
-				{
-					// Not a sensor or it's not supported
-					pts_client::test_profile_debug_message('No supported sensor found');
-					continue;
-				}
-
-				if(!is_numeric($polling_freq) || $polling_freq < 0.5)
-				{
-					pts_client::test_profile_debug_message('No polling frequency defined, defaulting to 2 seconds');
-					$polling_freq = 2;
-				}
-
-				$polling_freq *= 1000000; // Convert from seconds to micro-seconds
-
-				if(!in_array($report_as, array('ALL', 'MAX', 'MIN', 'AVG')))
-				{
-					// Not a valid reporting type
-					pts_client::test_profile_debug_message('No valid Report entry found.');
-					continue;
-				}
-
-				if(!function_exists('pcntl_fork'))
-				{
-					pts_client::$display->test_run_instance_error('PHP with PCNTL support enabled is required for this test.');
-					return false;
-				}
-
-				$monitor_file = tempnam($test_directory, '.monitor');
-				$pid = pcntl_fork();
-
-				if($pid != -1)
-				{
-					if($pid)
+					$sensor_values = array();
+					while(is_file($monitor_file)) // when test ends, it will remove file in case the posix_kill doesn't happen
 					{
-						// Main process still
-						self::$monitoring_sensors[] = array($pid, $sensor, $report_as, $monitor_file);
-						continue;
+						$sensor_values[] = phodevi::read_sensor($sensor);
+						file_put_contents($monitor_file, implode("\n", $sensor_values));
+						usleep($polling_freq);
 					}
-					else
-					{
-						$sensor_values = array();
-
-						while(is_file($monitor_file)) // when test ends, it will remove file in case the posix_kill doesn't happen
-						{
-							$sensor_values[] = phodevi::read_sensor($sensor);
-							file_put_contents($monitor_file, implode("\n", $sensor_values));
-							usleep($polling_freq);
-						}
-
-						exit(0);
-					}
+					exit(0);
 				}
 			}
 		}
 
 		return count(self::$monitoring_sensors) > 0;
 	}
-	public static function system_monitor_task_post_test(&$test_run_request)
+	public static function system_monitor_task_post_test(&$test_run_request, $exit_status_pass = true)
 	{
 		$test_directory = $test_run_request->test_profile->get_install_dir();
 		$did_post_result = false;
@@ -161,12 +129,13 @@ class pts_test_result_parser
 				$end_time = microtime(true);
 
 				// Delta time
-				$result_value = $end_time - $sensor_r[3];
+				$result_value = round($end_time - $sensor_r[3], 3);
 
-				$minimal_test_time = pts_config::read_user_config('PhoronixTestSuite/Options/TestResultValidation/MinimalTestTime', 3);
+				$minimal_test_time = pts_config::read_user_config('PhoronixTestSuite/Options/TestResultValidation/MinimalTestTime', 2);
 				if($result_value < $minimal_test_time)
 				{
 					// The test ended too fast
+					pts_client::test_profile_debug_message('Test Run-Time Too Short: ' . $result_value);
 					$result_value = null;
 				}
 			}
@@ -198,7 +167,7 @@ class pts_test_result_parser
 						$result_value = min($sensor_values);
 						break;
 					case 'AVG':
-						$result_value = array_sum($sensor_values) / count($sensor_values);
+						$result_value = pts_math::arithmetic_mean($sensor_values);
 						break;
 					case 'ALL':
 						$result_value = implode(',', $sensor_values);
@@ -209,7 +178,7 @@ class pts_test_result_parser
 				}
 			}
 
-			if($result_value != null && $result_value > 0)
+			if($result_value != null && $result_value > 0 && $exit_status_pass)
 			{
 				// For now it's only possible to return one result per test XXX actually with PTS7 this can be changed....
 				// TODO XXX for some sensors may make sense for min/max values?
@@ -248,131 +217,180 @@ class pts_test_result_parser
 	}
 	public static function generate_extra_data(&$test_result, &$test_log_file = null)
 	{
-		$xml = self::setup_parse_xml_file($test_result->test_profile);
-
-		if($xml === false)
+		$definitions = $test_result->test_profile->get_results_definition('ExtraData');
+		foreach($definitions->get_system_monitor_definitions() as $entry)
 		{
-			return false;
-		}
-
-		if($xml->ExtraData)
-		{
-			foreach($xml->ExtraData as $entry)
+			$frame_all_times = array();
+			switch($entry->get_identifier())
 			{
-				$id = isset($entry->Identifier) ? $entry->Identifier->__toString() : null;
-
-				$frame_all_times = array();
-
-				switch($id)
-				{
-					case 'libframetime-output':
-						// libframetime output
-						$line_values = explode(PHP_EOL, file_get_contents($test_log_file));
-						if(!empty($line_values) && isset($line_values[3]))
+				case 'libframetime-output':
+					// libframetime output
+					$line_values = explode(PHP_EOL, file_get_contents($test_log_file));
+					if(!empty($line_values) && isset($line_values[3]))
+					{
+						foreach($line_values as &$v)
 						{
-							foreach($line_values as &$v)
+							if(substr($v, -3) == ' us' && substr($v, 0, 10) == 'Frametime ')
 							{
-								if(substr($v, -3) == ' us' && substr($v, 0, 10) == 'Frametime ')
+								$frametime = substr($v, 10);
+								$frametime = substr($frametime, 0, -3);
+								if($frametime > 2000)
 								{
-									$frametime = substr($v, 10);
-									$frametime = substr($frametime, 0, -3);
-									if($frametime > 2000)
-									{
-										$frametime = $frametime / 1000;
-										$frame_all_times[] = $frametime;
-									}
-								}
-							}
-							$frame_all_times = pts_math::remove_outliers($frame_all_times);
-						}
-						break;
-					case 'csv-dump-frame-latencies':
-						// Civ Beyond Earth
-						$csv_values = explode(',', pts_file_io::file_get_contents($test_log_file));
-						if(!isset($csv_values[10]))
-						{
-							$csv_values = explode(PHP_EOL, pts_file_io::file_get_contents($test_log_file));
-						}
-						if(!empty($csv_values) && isset($csv_values[3]))
-						{
-							foreach($csv_values as $i => &$v)
-							{
-								if(!is_numeric($v))
-								{
-									unset($csv_values[$i]);
-									continue;
-								}
-
-								$frame_all_times[] = $v;
-							}
-						}
-						break;
-					case 'com-speeds-frame-latency-totals':
-						// id Tech Games
-						$log_file = pts_file_io::file_get_contents($test_log_file);
-						$frame_all_times = array();
-						while(($log_file = strstr($log_file, 'frame:')))
-						{
-							if(($a = strpos($log_file, ' all: ')) !== false && $a < strpos($log_file, "\n"))
-							{
-								$all = ltrim(substr($log_file, $a + 6));
-								$all = substr($all, 0, strpos($all, ' '));
-
-								if(is_numeric($all) && $all > 0)
-								{
-									$frame_all_times[] = $all;
-								}
-							}
-							$log_file = strstr($log_file, 'bk:');
-						}
-						break;
-					case 'cpu-frames-space-delimited':
-						// HITMAN on Linux uses at least this method
-						$log_file = pts_file_io::file_get_contents($test_log_file);
-						$frame_all_times = array();
-						if(($x = strpos($log_file, '---- CPU FRAMES ----')) !== false)
-						{
-							$log_file = trim(str_replace(PHP_EOL, ' ', substr($log_file, $x + strlen('---- CPU FRAMES ----'))));
-							foreach(explode(' ', $log_file) as $inp)
-							{
-								if(is_numeric($inp) && $inp > 0)
-								{
-									$frame_all_times[] = round(1000 / $inp, 3); // since its reporting current frame
+									$frametime = $frametime / 1000;
+									$frame_all_times[] = $frametime;
 								}
 							}
 						}
-						break;
-				}
-
-				if(isset($frame_all_times[60]))
-				{
-					// Take off the first frame as it's likely to have taken much longer when game just starting off...
-					// array_shift($frame_all_times);
-					$tp = clone $test_result->test_profile;
-					$tp->set_result_scale('Milliseconds');
-					$tp->set_result_proportion('LIB');
-					$tp->set_display_format('LINE_GRAPH');
-					$tp->set_identifier(null);
-					$extra_result = new pts_test_result($tp);
-					$extra_result->active = new pts_test_result_buffer_active();
-					$extra_result->set_used_arguments_description($test_result->get_arguments_description() . ' - Total Frame Time');
-					$extra_result->set_used_arguments($test_result->get_arguments() . ' - ' . $extra_result->get_arguments_description()); // this formatting is weird but to preserve pre-PTS7 comparsions of extra results
-					$extra_result->active->set_result(implode(',', $frame_all_times));
-					self::gen_result_active_handle($test_result, $extra_result)->add_trial_run_result(implode(',', $frame_all_times));
-					//$extra_result->set_used_arguments(phodevi::sensor_name($sensor) . ' ' . $test_result->get_arguments());
-				}
+						$frame_all_times = pts_math::remove_outliers($frame_all_times);
+					}
+					break;
+				case 'csv-dump-frame-latencies':
+					// Civ Beyond Earth
+					$csv_values = explode(',', pts_file_io::file_get_contents($test_log_file));
+					if(!isset($csv_values[10]))
+					{
+						$csv_values = explode(PHP_EOL, pts_file_io::file_get_contents($test_log_file));
+					}
+					if(!empty($csv_values) && isset($csv_values[3]))
+					{
+						foreach($csv_values as $i => &$v)
+						{
+							if(!is_numeric($v))
+							{
+								unset($csv_values[$i]);
+								continue;
+							}
+							$frame_all_times[] = $v;
+						}
+					}
+					break;
+				case 'com-speeds-frame-latency-totals':
+					// id Tech Games
+					$log_file = pts_file_io::file_get_contents($test_log_file);
+					$frame_all_times = array();
+					while(($log_file = strstr($log_file, 'frame:')))
+					{
+						if(($a = strpos($log_file, ' all: ')) !== false && $a < strpos($log_file, "\n"))
+						{
+							$all = ltrim(substr($log_file, $a + 6));
+							$all = substr($all, 0, strpos($all, ' '));
+							if(is_numeric($all) && $all > 0)
+							{
+								$frame_all_times[] = $all;
+							}
+						}
+						$log_file = strstr($log_file, 'bk:');
+					}
+					break;
+				case 'cpu-frames-space-delimited':
+					// HITMAN on Linux uses at least this method
+					$log_file = pts_file_io::file_get_contents($test_log_file);
+					$frame_all_times = array();
+					if(($x = strpos($log_file, '---- CPU FRAMES ----')) !== false)
+					{
+						$log_file = trim(str_replace(PHP_EOL, ' ', substr($log_file, $x + strlen('---- CPU FRAMES ----'))));
+						foreach(explode(' ', $log_file) as $inp)
+						{
+							if(is_numeric($inp) && $inp > 0)
+							{
+								$frame_all_times[] = round(1000 / $inp, 3); // since its reporting current frame
+							}
+						}
+					}
+					break;
+				case 'gpu-frames-space-delimited':
+					// HITMAN 2 uses at least this method
+					$log_file = pts_file_io::file_get_contents($test_log_file);
+					$frame_all_times = array();
+					if(($x = strpos($log_file, '---- GPU FRAMES ----')) !== false)
+					{
+						$log_file = trim(str_replace(PHP_EOL, ' ', substr($log_file, $x + strlen('---- GPU FRAMES ----'))));
+						foreach(explode(' ', $log_file) as $inp)
+						{
+							if(is_numeric($inp) && $inp > 0)
+							{
+								$frame_all_times[] = round(1000 / $inp, 3); // since its reporting current frame
+							}
+						}
+					}
+					break;
+				case 'valve-source-frame-times':
+					// Counter-Strike: GO At least
+					$log_file = pts_file_io::file_get_contents($test_log_file);
+					$frame_all_times = array();
+					if(($x = strpos($log_file, 'demo tick,frame start time,frame start delta')) !== false)
+					{
+						$log_file = substr($log_file, $x);
+						foreach(explode(PHP_EOL, $log_file) as $line)
+						{
+							$line = explode(',', $line);
+							if(isset($line[2]) && is_numeric($line[2]) && $line[2] > 0)
+							{
+								$frame_all_times[] = $line[2] * 1000;
+							}
+						}
+					}
+					break;
+				case 'csv-f1-frame-times':
+					// F1 2018
+					$log_file = pts_file_io::file_get_contents($test_log_file);
+					$frame_all_times = array();
+					if(($x = strpos($log_file, 'Frame,Time (ms)')) !== false)
+					{
+						$log_file = substr($log_file, $x);
+						foreach(explode(PHP_EOL, $log_file) as $line)
+						{
+							$line = explode(',', $line);
+							if(isset($line[1]) && is_numeric($line[1]) && $line[1] > 0)
+							{
+								$frame_all_times[] = $line[1];
+							}
+						}
+					}
+					break;
+				case 'csv-individual-frame-times':
+					// Thrones of Britannia on Linux uses at least this method
+					$log_file = pts_file_io::file_get_contents($test_log_file);
+					$frame_all_times = array();
+					if(($x = strpos($log_file, 'individual frame times (ms):')) !== false)
+					{
+						$log_file = trim(str_replace(PHP_EOL, ' ', substr($log_file, $x + strlen('individual frame times (ms): '))));
+						foreach(explode(', ', $log_file) as $inp)
+						{
+							if(is_numeric($inp) && $inp > 0)
+							{
+								$frame_all_times[] = $inp;
+							}
+							else
+							{
+								// hitting the end
+								break;
+							}
+						}
+					}
+					break;
+			}
+			if(isset($frame_all_times[60]))
+			{
+				// Take off the first frame as it's likely to have taken much longer when game just starting off...
+				// array_shift($frame_all_times);
+				$tp = clone $test_result->test_profile;
+				$tp->set_result_scale('Milliseconds');
+				$tp->set_result_proportion('LIB');
+				$tp->set_display_format('LINE_GRAPH');
+				$tp->set_identifier(null);
+				$extra_result = new pts_test_result($tp);
+				$extra_result->active = new pts_test_result_buffer_active();
+				$extra_result->set_used_arguments_description($test_result->get_arguments_description() . ' - Total Frame Time');
+				$extra_result->set_used_arguments($test_result->get_arguments() . ' - ' . $extra_result->get_arguments_description()); // this formatting is weird but to preserve pre-PTS7 comparsions of extra results
+				$extra_result->active->set_result(implode(',', $frame_all_times));
+				self::gen_result_active_handle($test_result, $extra_result)->add_trial_run_result(implode(',', $frame_all_times));
+				//$extra_result->set_used_arguments(phodevi::sensor_name($sensor) . ' ' . $test_result->get_arguments());
 			}
 		}
 	}
 	protected static function parse_iqc_result(&$test_run_request, $log_file, $pts_test_arguments, $extra_arguments)
 	{
-		$xml = self::setup_parse_xml_file($test_run_request->test_profile);
-
-		if($xml === false)
-		{
-			return false;
-		}
-
 		if(!extension_loaded('gd'))
 		{
 			// Needs GD library to work
@@ -380,49 +398,40 @@ class pts_test_result_parser
 		}
 
 		$returns = false;
-
-		if($xml->ImageParser)
+		$definitions = $test_run_request->test_profile->get_results_definition('ImageParser');
+		foreach($definitions->get_system_monitor_definitions() as $entry)
 		{
-			foreach($xml->ImageParser as $entry)
+			$match_test_arguments = $entry->get_match_to_image_args();
+			if(!empty($match_test_arguments) && strpos($pts_test_arguments, $match_test_arguments) === false)
 			{
-				$match_test_arguments = isset($entry->MatchToTestArguments) ? $entry->MatchToTestArguments->__toString() : null;
-				if(!empty($match_test_arguments) && strpos($pts_test_arguments, $match_test_arguments) === false)
-				{
-					// This is not the ResultsParser XML section to use as the MatchToTestArguments does not match the PTS test arguments
-					continue;
-				}
+				// This is not the ResultsParser XML section to use as the MatchToTestArguments does not match the PTS test arguments
+				continue;
+			}
+			$iqc_source_file = $entry->get_source_image();
+			if(is_file($test_run_request->test_profile->get_install_dir() . $iqc_source_file))
+			{
+				$iqc_source_file = $test_run_request->test_profile->get_install_dir() . $iqc_source_file;
+			}
+			else
+			{
+				// No image file found
+				continue;
+			}
+			$img = pts_image::image_file_to_gd($iqc_source_file);
 
-				$iqc_source_file = isset($entry->SourceImage) ? $entry->SourceImage->__toString() : null;
-				if(is_file($test_run_request->test_profile->get_install_dir() . $iqc_source_file))
-				{
-					$iqc_source_file = $test_run_request->test_profile->get_install_dir() . $iqc_source_file;
-				}
-				else
-				{
-					// No image file found
-					continue;
-				}
+			if($img == false)
+			{
+				return;
+			}
 
-				$img = pts_image::image_file_to_gd($iqc_source_file);
-				if($img == false)
-				{
-					return;
-				}
-
-				$iqc_image_x = isset($entry->ImageX) ? $entry->ImageX->__toString() : null;
-				$iqc_image_y = isset($entry->ImageY) ? $entry->ImageY->__toString() : null;
-				$iqc_image_width = isset($entry->ImageWidth) ? $entry->ImageWidth->__toString() : null;
-				$iqc_image_height = isset($entry->ImageHeight) ? $entry->ImageHeight->__toString() : null;
-				$img_sliced = imagecreatetruecolor($iqc_image_width, $iqc_image_height);
-				imagecopyresampled($img_sliced, $img, 0, 0, $iqc_image_x, $iqc_image_y, $iqc_image_width, $iqc_image_height, $iqc_image_width, $iqc_image_height);
-				$test_result = $test_run_request->test_profile->get_install_dir() . 'iqc.png';
-				imagepng($img_sliced, $test_result);
-
-				if($test_result != false)
-				{
-					self::gen_result_active_handle($test_run_request)->add_trial_run_result($test_result);
-					$returns = true;
-				}
+			$img_sliced = imagecreatetruecolor($entry->get_image_width(), $entry->get_image_height());
+			imagecopyresampled($img_sliced, $img, 0, 0, $entry->get_image_x(), $entry->get_image_y(), $entry->get_image_width(), $entry->get_image_height(), $entry->get_image_width(), $entry->get_image_height());
+			$test_result = $test_run_request->test_profile->get_install_dir() . 'iqc.png';
+			imagepng($img_sliced, $test_result);
+			if($test_result != false)
+			{
+				self::gen_result_active_handle($test_run_request)->add_trial_run_result($test_result);
+				$returns = true;
 			}
 		}
 
@@ -431,44 +440,58 @@ class pts_test_result_parser
 	protected static function parse_result_process(&$test_run_request, $log_file, $pts_test_arguments, $extra_arguments, $prefix = null)
 	{
 		$produced_result = false;
-		$is_pass_fail_test = in_array($test_run_request->test_profile->get_display_format(), array('PASS_FAIL', 'MULTI_PASS_FAIL'));
-		$is_numeric_check = !$is_pass_fail_test;
-		$xml = self::setup_parse_xml_file($test_run_request->test_profile);
 
 		if($prefix != null && substr($prefix, -1) != '_')
 		{
 			$prefix .= '_';
 		}
 
-		if($xml->ResultsParser)
+		$definitions = $test_run_request->test_profile->get_results_definition('ResultsParser');
+		$all_parser_entries = $definitions->get_result_parser_definitions();
+		$avoid_duplicates = array();
+		foreach($all_parser_entries as $entry)
 		{
-			foreach($xml->ResultsParser as $entry)
+			$tr = clone $test_run_request;
+			if($entry->get_display_format() != null)
 			{
-				$tr = clone $test_run_request;
-				$test_result = self::parse_result_process_entry($tr, $log_file, $pts_test_arguments, $extra_arguments, $prefix, $entry, $is_pass_fail_test, $is_numeric_check);
-				if($test_result != false)
+				$tr->test_profile->set_display_format($entry->get_display_format());
+			}
+			$is_pass_fail_test = in_array($tr->test_profile->get_display_format(), array('PASS_FAIL', 'MULTI_PASS_FAIL'));
+			$is_numeric_check = !$is_pass_fail_test;
+			$min_result = null;
+			$max_result = null;
+			$min_test_result = false;
+			$max_test_result = false;
+			$test_result = self::parse_result_process_entry($tr, $log_file, $pts_test_arguments, $extra_arguments, $prefix, $entry, $is_pass_fail_test, $is_numeric_check, $all_parser_entries, $min_test_result, $max_test_result);
+			if($test_result != false)
+			{
+				// Result found
+				if(in_array($test_result, $avoid_duplicates))
 				{
-					// Result found
-					if($is_numeric_check)
-					{
-						// Check if this test reports a min result value
-						$min_result = self::parse_result_process_entry($tr, $log_file, $pts_test_arguments, $extra_arguments, 'MIN_', $entry, $is_pass_fail_test, $is_numeric_check);
-						// Check if this test reports a max result value
-						$max_result = self::parse_result_process_entry($tr, $log_file, $pts_test_arguments, $extra_arguments, 'MAX_', $entry, $is_pass_fail_test, $is_numeric_check);
-					}
-					self::gen_result_active_handle($test_run_request, $tr)->add_trial_run_result($test_result, $min_result, $max_result);
-					$produced_result = true;
+					// Workaround for some tests like FIO that have test result parsers that could generate duplicates in handling old PTS versions while newer ones have K conversion, etc
+					continue;
 				}
+				$avoid_duplicates[] = $test_result;
+				if($is_numeric_check)
+				{
+					// Check if this test reports a min result value
+					$min_result = $min_test_result !== false && is_numeric($min_test_result) ? $min_test_result : self::parse_result_process_entry($tr, $log_file, $pts_test_arguments, $extra_arguments, 'MIN_', $entry, $is_pass_fail_test, $is_numeric_check, $all_parser_entries);
+					// Check if this test reports a max result value
+					$max_result = $max_test_result !== false && is_numeric($max_test_result) ? $max_test_result : self::parse_result_process_entry($tr, $log_file, $pts_test_arguments, $extra_arguments, 'MAX_', $entry, $is_pass_fail_test, $is_numeric_check, $all_parser_entries);
+				}
+				self::gen_result_active_handle($test_run_request, $tr)->add_trial_run_result($test_result, $min_result, $max_result);
+				$produced_result = true;
 			}
 		}
+
 		return $produced_result;
 	}
-	protected static function parse_result_process_entry(&$test_run_request, $log_file, $pts_test_arguments, $extra_arguments, $prefix, &$entry, $is_pass_fail_test, $is_numeric_check)
+	protected static function parse_result_process_entry(&$test_run_request, $log_file, $pts_test_arguments, $extra_arguments, $prefix, &$e, $is_pass_fail_test, $is_numeric_check, &$all_parser_entries, &$min_test_result = false, &$max_test_result = false)
 	{
 		$test_result = false;
-		$match_test_arguments = isset($entry->MatchToTestArguments) ? $entry->MatchToTestArguments->__toString() : null;
-		$template = isset($entry->OutputTemplate) ? $entry->OutputTemplate->__toString() : null;
-		$multi_match = isset($entry->MultiMatch) ? $entry->MultiMatch->__toString() : null;
+		$match_test_arguments = $e->get_match_to_test_args();
+		$template = $e->get_output_template();
+		$multi_match = $e->get_multi_match();
 
 		if(!empty($match_test_arguments) && strpos($pts_test_arguments, $match_test_arguments) === false)
 		{
@@ -477,7 +500,7 @@ class pts_test_result_parser
 			return false;
 		}
 
-		switch((isset($entry->ResultKey) ? $entry->ResultKey->__toString() : null))
+		switch($e->get_result_key())
 		{
 			case 'PTS_TEST_ARGUMENTS':
 				$key_for_result = '#_' . $prefix . str_replace(' ', '', $pts_test_arguments) . '_#';
@@ -489,23 +512,65 @@ class pts_test_result_parser
 				$key_for_result = '#_' . $prefix . 'RESULT_#';
 				break;
 		}
-		pts_client::test_profile_debug_message('Result Key: ' . $key_for_result);
-
 		// The actual parsing here
 		$start_result_pos = strrpos($template, $key_for_result);
+		$test_results = array();
 
-		if($prefix != null && $start_result_pos === false && $template != 'csv-dump-frame-latencies' && $template != 'libframetime-output')
+		if($prefix != null && $start_result_pos === false && $template != 'csv-dump-frame-latencies' && $template != 'libframetime-output' && $e->get_file_format() == null)
 		{
 			// XXX: technically the $prefix check shouldn't be needed, verify whether safe to have this check be unconditional on start_result_pos failing...
-			pts_client::test_profile_debug_message('Failed Additional Check');
+			//pts_client::test_profile_debug_message('Failed Additional Check');
+			return false;
+		}
+		pts_client::test_profile_debug_message('Result Key: ' . $key_for_result);
+
+		if(is_file($log_file))
+		{
+			if(filesize($log_file) > 52428800)
+			{
+				pts_client::test_profile_debug_message('File Too Big To Parse: ' . $log_file);
+			}
+			$output = file_get_contents($log_file);
+		}
+		else
+		{
+			pts_client::test_profile_debug_message('No Log File Found To Parse');
 			return false;
 		}
 
 		$space_out_chars = array('(', ')', "\t");
-		$file_format = isset($entry->FileFormat) ? $entry->FileFormat->__toString() : null;
-		if(isset($file_format) && $file_format == 'CSV')
+		switch($e->get_file_format())
 		{
-			$space_out_chars[] = ',';
+			case 'CSV':
+				$space_out_chars[] = ',';
+				break;
+			case 'XML':
+				$xml = simplexml_load_string($output, 'SimpleXMLElement', LIBXML_COMPACT | LIBXML_PARSEHUGE | LIBXML_NOCDATA);
+				$xml = json_decode(json_encode((array)$xml), true);
+				$x = $xml;
+				foreach(explode('/', $template) as $p)
+				{
+					pts_client::test_profile_debug_message('XML Trying ' . $p);
+					if(isset($x[$p]))
+					{
+						$x = $x[$p];
+					}
+					else
+					{
+						pts_client::test_profile_debug_message('XML Failed To Find ' . $p);
+						break;
+					}
+				}
+				if(isset($x))
+				{
+					if(!is_array($x))
+					{
+						pts_client::test_profile_debug_message('XML Value Found: ' . $x);
+						$test_results[] = trim($x);
+					}
+				}
+				goto RESULTPOSTPROCESSING;
+				break;
 		}
 
 		if((isset($template[($start_result_pos - 1)]) && $template[($start_result_pos - 1)] == '/') || (isset($template[($start_result_pos + strlen($key_for_result))]) && $template[($start_result_pos + strlen($key_for_result))] == '/'))
@@ -533,21 +598,7 @@ class pts_test_result_parser
 				}
 			}
 		}
-		if(is_file($log_file))
-		{
-			if(filesize($log_file) > 52428800)
-			{
-				pts_client::test_profile_debug_message('File Too Big To Parse: ' . $log_file);
-			}
-			$output = file_get_contents($log_file);
-		}
-		else
-		{
-			pts_client::test_profile_debug_message('No Log File Found To Parse');
-			return false;
-		}
 
-		$test_results = array();
 		// Check if frame time parsing info
 		if(self::check_for_frame_time_parsing($test_results, $template, $output, $prefix))
 		{
@@ -556,16 +607,23 @@ class pts_test_result_parser
 		else
 		{
 			// Conventional searching for matching section for finding result
-			$line_before_hint = isset($entry->LineBeforeHint) ? $entry->LineBeforeHint->__toString() : null;
-			$line_after_hint = isset($entry->LineAfterHint) ? $entry->LineAfterHint->__toString() : null;
-			$line_hint = isset($entry->LineHint) ? $entry->LineHint->__toString() : null;
-			$search_key = self::determine_search_key($line_hint, $line_before_hint, $line_after_hint, $template_line, $template, $template_r, $key_for_result); // SEARCH KEY
-			pts_client::test_profile_debug_message('Search Key: ' . $search_key);
+			if($e->get_delete_output_before() != null && ($x = strpos($output, $e->get_delete_output_before())) !== false)
+			{
+				$output = substr($output, $x);
+			}
+			if($e->get_delete_output_after() != null && ($x = strpos($output, $e->get_delete_output_after())) !== false)
+			{
+				$output = substr($output, 0, $x);
+			}
+
+			$line_before_hint = $e->get_line_before_hint();
+			$line_after_hint = $e->get_line_after_hint();
+			$line_hint = $e->get_line_hint();
+			$search_key = self::determine_search_key($output, $line_hint, $line_before_hint, $line_after_hint, $template_line, $template, $template_r, $key_for_result); // SEARCH KEY
+
 			if($search_key != null || $line_before_hint != null || $line_after_hint != null || $template_r[0] == $key_for_result)
 			{
 				$is_multi_match = !empty($multi_match) && $multi_match != 'NONE';
-				$before_string = isset($entry->ResultBeforeString) ? $entry->ResultBeforeString->__toString() : null;
-				$after_string = isset($entry->ResultAfterString) ? $entry->ResultAfterString->__toString() : null;
 
 				do
 				{
@@ -582,14 +640,17 @@ class pts_test_result_parser
 					else if($line_after_hint != null)
 					{
 						pts_client::test_profile_debug_message('Result Parsing Line After Hint: ' . $line_after_hint);
-						$line = substr($output, 0, strrpos($output, "\n", strrpos($output, $line_before_hint)));
+						$line = substr($output, 0, strrpos($output, "\n", strrpos($output, $line_after_hint)));
 						$line = substr($line, strrpos($line, "\n", 1) + 1);
 						$output = null;
 					}
 					else if($search_key != null)
 					{
-						$search_key = trim($search_key);
-						pts_client::test_profile_debug_message('Result Parsing Search Key: ' . $search_key);
+						if(trim($search_key) != null)
+						{
+							$search_key = trim($search_key);
+						}
+						pts_client::test_profile_debug_message('Result Parsing Search Key: "' . $search_key . '"');
 
 						while(($line_x = strrpos($output, $search_key)) !== false)
 						{
@@ -597,7 +658,14 @@ class pts_test_result_parser
 							$start_of_line = strrpos($line, "\n");
 							$output = substr($line, 0, $start_of_line) . "\n";
 							$possible_lines[] = substr($line, $start_of_line + 1);
+
+							if(count($possible_lines) > 16 && $is_multi_match && phodevi::is_windows())
+							{
+								// This vastly speeds up pts/dav1d result decoding on Windows as this expensive loop not used
+								break;
+							}
 						}
+
 						$line = !empty($possible_lines) ? array_shift($possible_lines) : null;
 					}
 					else
@@ -605,6 +673,10 @@ class pts_test_result_parser
 						// Condition $template_r[0] == $key, include entire file since there is nothing to search
 						pts_client::test_profile_debug_message('No Result Parsing Hint, Including Entire Result Output');
 						$line = trim($output);
+					}
+					if($e->get_turn_chars_to_space() != null)
+					{
+						$line = str_replace($e->get_turn_chars_to_space(), ' ', $line);
 					}
 					pts_client::test_profile_debug_message('Result Line: ' . $line);
 
@@ -617,21 +689,24 @@ class pts_test_result_parser
 						$r = explode(' ', pts_strings::trim_spaces(str_replace($space_out_chars, ' ', str_replace('=', ' = ', $line))));
 						$r_pos = array_search($key_for_result, $r);
 
-						if(!empty($before_string))
+						if($e->get_result_before_string() != null)
 						{
 							// Using ResultBeforeString tag
-							$before_this = array_search($before_string, $r);
-							$possible_res = $r[($before_this - 1)];
-							self::strip_result_cleaner($possible_res, $entry);
-							if($before_this !== false && (!$is_numeric_check || is_numeric($possible_res)))
+							$before_this = array_search($e->get_result_before_string(), $r);
+							if($before_this && isset($r[($before_this - 1)]))
 							{
-								$test_results[] = $possible_res;
+								$possible_res = $r[($before_this - 1)];
+								self::strip_result_cleaner($possible_res, $e);
+								if($before_this !== false && (!$is_numeric_check || is_numeric($possible_res)))
+								{
+									$test_results[] = $possible_res;
+								}
 							}
 						}
-						else if(!empty($after_string))
+						else if($e->get_result_after_string() != null)
 						{
 							// Using ResultBeforeString tag
-							$after_this = array_search($after_string, $r);
+							$after_this = array_search($e->get_result_after_string(), $r);
 
 							if($after_this !== false)
 							{
@@ -642,7 +717,7 @@ class pts_test_result_parser
 									{
 										continue;
 									}
-									self::strip_result_cleaner($r[$f], $entry);
+									self::strip_result_cleaner($r[$f], $e);
 									if(!$is_numeric_check || is_numeric($r[$f]))
 									{
 										$test_results[] = $r[$f];
@@ -653,7 +728,7 @@ class pts_test_result_parser
 						}
 						else if(isset($r[$template_r_pos]))
 						{
-							self::strip_result_cleaner($r[$template_r_pos], $entry);
+							self::strip_result_cleaner($r[$template_r_pos], $e);
 							if(!$is_numeric_check || is_numeric($r[$template_r_pos]))
 							{
 								$test_results[] = $r[$template_r_pos];
@@ -689,6 +764,11 @@ class pts_test_result_parser
 							pts_client::test_profile_debug_message('Trying Backup Result Line: ' . $line);
 							$try_again = true;
 						}
+						else if(!empty($test_results) && $is_multi_match && !empty($possible_lines) && $search_key != null)
+						{
+							// Rebuild output if it was disassembled in search key code above
+							$output = implode(PHP_EOL, array_reverse($possible_lines)) . PHP_EOL;
+						}
 					}
 					while($try_again);
 				}
@@ -696,18 +776,20 @@ class pts_test_result_parser
 			}
 		}
 
+		RESULTPOSTPROCESSING:
 		if(empty($test_results))
 		{
 			pts_client::test_profile_debug_message('No Test Results');
 			return false;
 		}
 
-		$multiply_by = isset($entry->MultiplyResultBy) ? $entry->MultiplyResultBy->__toString() : null;
-		$divide_by = isset($entry->DivideResultBy) ? $entry->DivideResultBy->__toString() : null;
+		$multiply_by = $e->get_multiply_result_by();
+		$divide_by = $e->get_divide_result_by();
+		$divide_divisor = $e->get_divide_result_divisor();
 
 		foreach($test_results as $x => &$test_result)
 		{
-			self::strip_result_cleaner($test_result, $entry);
+			self::strip_result_cleaner($test_result, $e);
 
 			// Expand validity checking here
 			if($is_numeric_check == true && is_numeric($test_result) == false)
@@ -729,6 +811,10 @@ class pts_test_result_parser
 			{
 				$test_result = $test_result / $divide_by;
 			}
+			if($divide_divisor != null && is_numeric($divide_divisor) && $divide_divisor != 0 && $test_result != 0)
+			{
+				$test_result = $divide_divisor / $test_result;
+			}
 			if($multiply_by != null && is_numeric($multiply_by) && $multiply_by != 0)
 			{
 				$test_result = $test_result * $multiply_by;
@@ -746,10 +832,40 @@ class pts_test_result_parser
 			case 'REPORT_ALL':
 				$test_result = implode(',', $test_results);
 				break;
-			case 'AVERAGE':
-				default:
+			case 'GEOMETRIC_MEAN':
 				if($is_numeric_check)
-					$test_result = array_sum($test_results) / count($test_results);
+				{
+					$test_result = pts_math::geometric_mean($test_results);
+					if(count($test_results) > 1)
+					{
+						$min_test_result = min($test_results);
+						$max_test_result = max($test_results);
+					}
+					break;
+				}
+			case 'HARMONIC_MEAN':
+				if($is_numeric_check)
+				{
+					$test_result = pts_math::harmonic_mean($test_results);
+					if(count($test_results) > 1)
+					{
+						$min_test_result = min($test_results);
+						$max_test_result = max($test_results);
+					}
+					break;
+				}
+			case 'AVERAGE':
+			case 'MEAN':
+			default:
+				if($is_numeric_check)
+				{
+					$test_result = pts_math::arithmetic_mean($test_results);
+					if(count($test_results) > 1)
+					{
+						$min_test_result = min($test_results);
+						$max_test_result = max($test_results);
+					}
+				}
 				break;
 		}
 
@@ -778,52 +894,72 @@ class pts_test_result_parser
 
 		if($test_result != false)
 		{
-			$precision = isset($entry->ResultPrecision) ? $entry->ResultPrecision->__toString() : null;
-			$scale = isset($entry->ResultScale) ? $entry->ResultScale->__toString() : null;
-			$proportion = isset($entry->ResultProportion) ? $entry->ResultProportion->__toString() : null;
-			$set_args_desc = isset($entry->ArgumentsDescription) ? $entry->ArgumentsDescription->__toString() : null;
-			$append_args_desc = isset($entry->AppendToArgumentsDescription) ? $entry->AppendToArgumentsDescription->__toString() : null;
+			if($e->get_result_scale() != null)
+			{
+				$test_run_request->test_profile->set_result_scale($e->get_result_scale());
+			}
+			if($e->get_result_proportion() != null)
+			{
+				$test_run_request->test_profile->set_result_proportion($e->get_result_proportion());
+			}
+			if($e->get_display_format() != null)
+			{
+				$test_run_request->test_profile->set_display_format($e->get_display_format());
+			}
+			if($e->get_result_precision() != null)
+			{
+				$test_run_request->set_result_precision($e->get_result_precision());
+			}
+			if($e->get_arguments_description() != null)
+			{
+				$test_run_request->set_used_arguments_description($e->get_arguments_description());
+			}
+			if($e->get_append_to_arguments_description() != null)
+			{
+				foreach($all_parser_entries as $parser_entry)
+				{
+					if($parser_entry->get_append_to_arguments_description() != null)
+					{
+						$test_run_request->remove_from_used_arguments_description(' - ' . $parser_entry->get_append_to_arguments_description());
+					}
+				}
 
-			if($scale != null)
-			{
-				$test_run_request->test_profile->set_result_scale($scale);
-			}
-			if($proportion != null)
-			{
-				$test_run_request->test_profile->set_result_proportion($proportion);
-			}
-			if($precision != null)
-			{
-				$test_run_request->set_result_precision($precision);
-			}
-			if($set_args_desc != null)
-			{
-				$test_run_request->set_used_arguments_description($set_args_desc);
-			}
-			if($append_args_desc != null)
-			{
-				$test_run_request->append_to_arguments_description(' - ' . $append_args_desc);
+				$test_run_request->append_to_arguments_description(' - ' . $e->get_append_to_arguments_description());
 			}
 		}
 
 		pts_client::test_profile_debug_message('Test Result Parser Returning: ' . $test_result);
 		return $test_result;
 	}
-	protected static function strip_result_cleaner(&$test_result, &$entry)
+	protected static function strip_result_cleaner(&$test_result, &$e)
 	{
-		$strip_from_result = isset($entry->StripFromResult) ? $entry->StripFromResult->__toString() : null;
-		$strip_result_postfix = isset($entry->StripResultPostfix) ? $entry->StripResultPostfix->__toString() : null;
-
-		if($strip_from_result != null)
+		if($e->get_strip_from_result() != null)
 		{
-			$test_result = str_replace($strip_from_result, null, $test_result);
+			$test_result = str_replace($e->get_strip_from_result(), null, $test_result);
 		}
-		if($strip_result_postfix != null && substr($test_result, 0 - strlen($strip_result_postfix)) == $strip_result_postfix)
+		if($e->get_strip_result_postfix() != null && substr($test_result, 0 - strlen($e->get_strip_result_postfix())) == $e->get_strip_result_postfix())
 		{
-			$test_result = substr($test_result, 0, 0 - strlen($strip_result_postfix));
+			$test_result = substr($test_result, 0, 0 - strlen($e->get_strip_result_postfix()));
+		}
+
+		if(!is_numeric($test_result) && is_numeric(substr($test_result, 0, -1)))
+		{
+			// The test_result is numeric except for the last character, possible k/M prefix or so
+			// Or do any other format conversion here
+			// Made in PTS 9.4, this shouldn't break any existing result-definitions since it would have been non-numeric here already
+			$result_without_last_char = substr($test_result, 0, -1);
+			switch(strtolower(substr($test_result, -1)))
+			{
+				case 'k':
+					$test_result = $result_without_last_char * 1000;
+					break;
+				case 'm':
+					$test_result = $result_without_last_char * 1000000;
+					break;
+			}
 		}
 	}
-	protected static function determine_search_key($line_hint, $line_before_hint, $line_after_hint, $template_line, $template, $template_r, $key)
+	protected static function determine_search_key(&$output, $line_hint, $line_before_hint, $line_after_hint, $template_line, $template, $template_r, $key)
 	{
 		// Determine the search key to use
 		$search_key = null;
@@ -831,23 +967,32 @@ class pts_test_result_parser
 		{
 			$search_key = $line_hint;
 		}
-		else if($line_before_hint != null && strpos($template, $line_hint) !== false)
+		else if($line_before_hint != null && $line_hint != null && strpos($template, $line_hint) !== false)
 		{
 			$search_key = null; // doesn't really matter what this value is
 		}
-		else if($line_after_hint != null && strpos($template, $line_hint) !== false)
+		else if($line_after_hint != null && $line_hint != null && strpos($template, $line_hint) !== false)
 		{
 			$search_key = null; // doesn't really matter what this value is
 		}
 		else
 		{
-			foreach($template_r as $line_part)
+			$first_portion_of_line = substr($template_line, 0, strpos($template_line, $key));
+			if($first_portion_of_line != null && strpos($output, $first_portion_of_line) !== false)
 			{
-				if(strpos($line_part, ':') !== false && strlen($line_part) > 1)
+				$search_key = $first_portion_of_line;
+			}
+
+			if($search_key == null)
+			{
+				foreach($template_r as $line_part)
 				{
-					// add some sort of && strrpos($template, $line_part)  to make sure there isn't two of the same $search_key
-					$search_key = $line_part;
-					break;
+					if(strpos($line_part, ':') !== false && strlen($line_part) > 1)
+					{
+						// add some sort of && strrpos($template, $line_part)  to make sure there isn't two of the same $search_key
+						$search_key = $line_part;
+						break;
+					}
 				}
 			}
 
@@ -925,7 +1070,7 @@ class pts_test_result_parser
 					break;
 				case 'AVG_':
 					default:
-					$val = array_sum($frame_time_values) / count($frame_time_values);
+					$val = pts_math::arithmetic_mean($frame_time_values);
 					break;
 			}
 

@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2016, Phoronix Media
-	Copyright (C) 2009 - 2016, Michael Larabel
+	Copyright (C) 2009 - 2019, Phoronix Media
+	Copyright (C) 2009 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -137,6 +137,7 @@ class pts_pdf_template extends FPDF
 					$this->Ln();
 					break;
 				case 'p':
+				case 'blockquote':
 					$this->SetFont('Arial', null, 11);
 					$this->SetLeftMargin(20);
 					$this->SetTextColor(0, 0, 0);
@@ -185,6 +186,7 @@ class pts_pdf_template extends FPDF
 
 			if($name != 'a')
 			{
+				$value = str_replace('&nbsp;', ' ', $value);
 				$this->Write(5, $value, null);
 			}
 		}
@@ -200,8 +202,7 @@ class pts_pdf_template extends FPDF
 		{
 			$this->Image(PTS_CORE_STATIC_PATH . 'images/pts-158x82.jpg', 10, 8, 30);
 		}
-
-		$this->SetFont('Arial', 'B', 14);
+		$this->SetFont('Arial', 'B', (isset($this->pts_title[50]) ? 10 : 14));
 		$this->SetTextColor(0, 0, 0);
 		$this->Cell(80);
 		$this->Cell(30, 10, $this->pts_title, 0, 0, 'C');
@@ -209,6 +210,8 @@ class pts_pdf_template extends FPDF
 		$this->SetFont('Arial', 'B', 10);
 		$this->Cell(0, 10, $this->pts_sub_title, 0, 0, 'C');
 		$this->Ln(15);
+   		$this->SetDrawColor(0,85,0);
+		$this->Line(10, 27, 210-10, 27);
 	}
 	public function Footer()
 	{
@@ -216,7 +219,9 @@ class pts_pdf_template extends FPDF
 		{
 			return;
 		}
-
+		$this->SetY(-15);
+   		$this->SetDrawColor(0,85,0);
+		$this->Line(10, $this->y, 210-10, $this->y);
 		$this->SetY(-10);
 		$this->SetFont('Arial', 'B', 7);
 		$this->SetTextColor(0, 0, 0);
@@ -229,7 +234,7 @@ class pts_pdf_template extends FPDF
 	}
 	public function WriteBigHeader($Header, $Align = 'L')
 	{
-		$this->SetFont('Arial', 'B', 21);
+		$this->SetFont('Arial', 'B', isset($Header[50]) ? 15 : 21);
 		$this->SetFillColor(255, 255, 255);
 		$this->Cell(0, 6, $Header, 0, 0, $Align, true);
 		$this->Ln(15);
@@ -247,7 +252,9 @@ class pts_pdf_template extends FPDF
 	}
 	public function WriteStatementCenter($Header)
 	{
+		$this->SetTextColor(0, 85, 0);
 		$this->WriteStatement($Header, 'C');
+		$this->SetTextColor(0, 0, 0);
 	}
 	public function WriteStatement($Header, $Align = 'L', $Link = null)
 	{
@@ -283,64 +290,54 @@ class pts_pdf_template extends FPDF
 		$this->SetFont('Arial', '', 10);
 		$this->MultiCell(0, 5, $Text);
 	}
-	public function WriteText($Text)
+	public function WriteText($Text, $I = '')
 	{
-		$this->SetFont('Arial', '', 11);
+		$this->SetFont('Arial', $I, 10);
 		$this->MultiCell(0, 5, $Text);
+		$this->SetFont('Arial', '', 10);
 		$this->Ln();
 	}
-	public function ResultTable($headers, $data, $left_headers = '')
+	public function WriteMiniText($Text)
 	{
+		$this->SetFont('Arial', '', 7);
+		$this->MultiCell(0, 3, $Text);
+		$this->SetFont('Arial', '', 10);
+		//$this->Ln();
+	}
+	public function ResultTable($headers, $data, $hints = null)
+	{
+		$this->SetFont('Arial', '', 9);
 		$this->Ln(20);
-		$this->SetFillColor(0, 0, 0);
-		$this->SetTextColor(255, 255, 255);
+		//$this->SetFillColor(0, 0, 0);
+		$this->SetTextColor(0, 0, 0);
 		$this->SetDrawColor(34, 34, 34);
 		$this->SetLineWidth(0.3);
-		$this->SetFont('Arial', 'B');
+		$this->SetFont('Arial', '');
 
-		$cell_width = 50;
-		$cell_large_width = $cell_width * 1.20;
+		$cell_width = floor($this->w / (count($headers) + 2));
+		$cell_widths = array();
+		$cell_large_width = round($cell_width * 2);
 		$table_width = 0;
 
-		if(is_array($left_headers) && count($left_headers) > 0)
+		array_push($cell_widths, $cell_large_width);
+		for($i = 1; $i < count($headers); $i++)
 		{
-			$this->Cell($cell_large_width, 7, '', 1, 0, 'C', true);
-			$table_width += $cell_large_width;
+			array_push($cell_widths, $cell_width);
+			//$this->Cell($cell_width, 2, $headers[$i], 1, 0, 'D', true);
 		}
+		$row_num = 0;
+		$this->Row($headers, $cell_widths, $row_num);
 
-		for($i = 0; $i < count($headers); $i++)
-		{
-			$this->Cell($cell_width, 7, $headers[$i], 1, 0, 'C', true);
-		}
-
-		$this->Ln();
-
-		$this->SetFillColor(139, 143, 124);
-		$this->SetTextColor(0);
+		//$this->SetFillColor(139, 143, 124);
+		//$this->SetTextColor(0);
 		$this->SetFont('Arial');
 
 		$fill = false;
-		for($i = 0; $i < count($data) || $i < count($left_headers); $i++)
+		for($i = 0; $i < count($data); $i++)
 		{
-			if(isset($left_headers[$i]))
-			{
-				$this->Cell($cell_large_width, 6, $left_headers[$i], 'LR', 0, 'L', $fill);
-			}
-
-			if(!isset($data[$i]))
-			{
-				$data[$i] = array();
-			}
-
-			for($j = 0; $j < count($data[$i]); $j++)
-			{
-				$this->Cell($cell_width, 6, $data[$i][$j], 'LR', 0, 'L', $fill);
-			}
-
-			$this->Ln();
-			$fill = !$fill;
+			$this->Row($data[$i], $cell_widths, $row_num, (isset($hints[$i]) ? $hints[$i] : null));
 		}
-		$this->Cell($table_width + (count($data[0]) * $cell_width), 0, '', 'T');
+		//$this->Cell($table_width + (count($data[0]) * $cell_width), 0, '', 'T');
 	}
 	public function _putinfo()
 	{

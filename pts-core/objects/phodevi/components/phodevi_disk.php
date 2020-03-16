@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2017, Phoronix Media
-	Copyright (C) 2008 - 2017, Michael Larabel
+	Copyright (C) 2008 - 2019, Phoronix Media
+	Copyright (C) 2008 - 2019, Michael Larabel
 	phodevi_disk.php: The PTS Device Interface object for the system disk(s)
 
 	This program is free software; you can redistribute it and/or modify
@@ -23,39 +23,15 @@
 
 class phodevi_disk extends phodevi_device_interface
 {
-	public static function read_property($identifier)
+	public static function properties()
 	{
-		switch($identifier)
-		{
-			case 'identifier':
-				$property = new phodevi_device_property('hdd_string', phodevi::smart_caching);
-				break;
-			case 'scheduler':
-				$property = new phodevi_device_property('hdd_scheduler', phodevi::no_caching);
-				break;
-			case 'mount-options':
-				$property = new phodevi_device_property('proc_mount_options', phodevi::no_caching);
-				break;
-			case 'mount-options-string':
-				$property = new phodevi_device_property('proc_mount_options_string', phodevi::no_caching);
-				break;
-			case 'extra-disk-details':
-				$property = new phodevi_device_property('extra_disk_details', phodevi::no_caching);
-				break;
-		}
-
-		return $property;
-	}
-	public static function device_notes()
-	{
-		$notes = array();
-
-		if(($disk_scheduler = phodevi::read_property('disk', 'scheduler')) != null)
-		{
-			array_push($notes, 'Disk Scheduler: ' . $disk_scheduler);
-		}
-
-		return $notes;
+		return array(
+			'identifier' => new phodevi_device_property('hdd_string', phodevi::smart_caching),
+			'scheduler' => new phodevi_device_property('hdd_scheduler', phodevi::no_caching),
+			'mount-options' => new phodevi_device_property('proc_mount_options', phodevi::no_caching),
+			'mount-options-string' => new phodevi_device_property('proc_mount_options_string', phodevi::no_caching),
+			'extra-disk-details' => new phodevi_device_property('extra_disk_details', phodevi::no_caching)
+			);
 	}
 	public static function proc_mount_options($mount_point = null, $mounts = null)
 	{
@@ -163,19 +139,46 @@ class phodevi_disk extends phodevi_device_interface
 		else if(phodevi::is_bsd())
 		{
 			$i = 0;
-
+			// On some systems, the first drive seems to be at dev.ad.8 rather than starting at dev.ad.0
 			do
 			{
 				$disk = phodevi_bsd_parser::read_sysctl('dev.ad.' . $i . '.%desc');
 
-				if($disk != false && strpos($disk, 'DVD') === false && strpos($disk, 'ATAPI') === false)
+				if($disk != false && strpos($disk, 'DVD') === false && $disk != false && strpos($disk, ' Console') === false && strpos($disk, 'ATAPI') === false)
 				{
 					array_push($disks, $disk);
 				}
 				$i++;
 			}
-			while(($disk != false || $i < 9) && $i < 128);
-			// On some systems, the first drive seems to be at dev.ad.8 rather than starting at dev.ad.0
+			while(($disk != false || $i < 9) && $i < 64);
+			$i = 0;
+
+			if(pts_client::executable_in_path('nvmecontrol'))
+			{
+				$nvmecontrol = shell_exec('nvmecontrol devlist 2>&1');
+				while(($p = strpos($nvmecontrol, ': ')) !== false)
+				{
+					$nvmecontrol = substr($nvmecontrol, $p + 2);
+					$line = substr($nvmecontrol, 0, strpos($nvmecontrol, PHP_EOL));
+					array_push($disks, trim($line));
+				}
+			}
+
+			if(empty($disks))
+			{
+				// This means of NVMe device reporting tends to just yield "Generic NVMe Device" string
+				do
+				{
+					$disk = phodevi_bsd_parser::read_sysctl('dev.nvme.' . $i . '.%desc');
+
+					if($disk != false && strpos($disk, 'DVD') === false && $disk != false && strpos($disk, ' Console') === false && strpos($disk, 'ATAPI') === false)
+					{
+						array_push($disks, $disk);
+					}
+					$i++;
+				}
+				while(($disk != false || $i < 9) && $i < 64);
+			}
 
 			if(empty($disks) && pts_client::executable_in_path('camcontrol'))
 			{
@@ -183,9 +186,10 @@ class phodevi_disk extends phodevi_device_interface
 
 				foreach(explode(PHP_EOL, $camcontrol) as $line)
 				{
-					if(substr($line, 0, 1) == '<' && ($model_end = strpos($line, '>')) !== false && strpos($line, 'DVD') === false && strpos($line, 'ATAPI') === false)
+					if(substr($line, 0, 1) == '<' && ($model_end = strpos($line, '>')) !== false && strpos($line, 'DVD') === false && strpos($line, 'ATAPI') === false && strpos($line, ' Console') === false)
 					{
 						$disk = self::prepend_disk_vendor(substr($line, 1, ($model_end - 1)));
+						$disk = trim(str_replace(array('SATA'), null, $disk));
 						array_push($disks, $disk);
 					}
 				}
@@ -215,10 +219,9 @@ class phodevi_disk extends phodevi_device_interface
 		}
 		else if(phodevi::is_linux())
 		{
-			$disks_formatted = array();
 			$disks = array();
 
-			foreach(array_merge(pts_file_io::glob('/sys/block/sd*'), pts_file_io::glob('/sys/block/mmcblk*'), pts_file_io::glob('/sys/block/nvme*')) as $sdx)
+			foreach(array_merge(pts_file_io::glob('/sys/block/nvme*'), pts_file_io::glob('/sys/block/pmem*'), pts_file_io::glob('/sys/block/sd*'), pts_file_io::glob('/sys/block/mmcblk*'), pts_file_io::glob('/sys/block/vd*')) as $sdx)
 			{
 				if(strpos($sdx, 'boot') !== false)
 				{
@@ -230,13 +233,15 @@ class phodevi_disk extends phodevi_device_interface
 				{
 					$disk_size = pts_file_io::file_get_contents($sdx . '/size');
 					$disk_model = pts_file_io::file_get_contents($sdx .  (is_file($sdx . '/device/model') ? '/device/model' : '/device/name'));
-					$disk_removable = pts_file_io::file_get_contents($sdx . '/removable');
 
+					/*
+					$disk_removable = pts_file_io::file_get_contents($sdx . '/removable');
 					if($disk_removable == '1')
 					{
 						// Don't count removable disks
 						continue;
 					}
+					*/
 
 					$disk_size = round($disk_size * 512 / 1000000000) . 'GB';
 					$disk_model = self::prepend_disk_vendor($disk_model);
@@ -248,30 +253,21 @@ class phodevi_disk extends phodevi_device_interface
 
 					if($disk_size > 0)
 					{
-						array_push($disks_formatted, $disk_model);
+						array_push($disks, $disk_model);
 					}
 				}
 			}
-
-			for($i = 0; $i < count($disks_formatted); $i++)
+		}
+		else if(phodevi::is_windows())
+		{
+ 			$models = phodevi_windows_parser::get_wmi_object_multi('Win32_DiskDrive', 'Model');
+ 			$size = phodevi_windows_parser::get_wmi_object_multi('Win32_DiskDrive', 'Size');
+			for($i = 0; $i < count($models) && $i < count($size); $i++)
 			{
-				if(!empty($disks_formatted[$i]))
-				{
-					$times_found = 1;
-
-					for($j = ($i + 1); $j < count($disks_formatted); $j++)
-					{
-						if($disks_formatted[$i] == $disks_formatted[$j])
-						{
-							$times_found++;
-							$disks_formatted[$j] = '';
-						}
-					}
-
-					$disk = ($times_found > 1 ? $times_found . ' x '  : null) . $disks_formatted[$i];
-					array_push($disks, $disk);
-				}
+				$s = $size[$i] / 1073741824;
+				$models[$i] = round($s) . 'GB ' . str_replace(array(' Device'), null, $models[$i]);
 			}
+			$disks = $models;
 		}
 
 		if(count($disks) == 0)
@@ -295,7 +291,7 @@ class phodevi_disk extends phodevi_device_interface
 		}
 		else
 		{
-			$disks = implode(' + ', $disks);
+			$disks = pts_arrays::array_to_cleansed_item_string($disks);
 		}
 
 		return $disks;
@@ -359,6 +355,11 @@ class phodevi_disk extends phodevi_device_interface
 	}
 	public static function hdd_scheduler()
 	{
+		if(!phodevi::is_linux())
+		{
+			return null;
+		}
+
 		$scheduler = null;
 		$device = self::proc_mount_options();
 		$device = basename($device['device']);
@@ -400,6 +401,11 @@ class phodevi_disk extends phodevi_device_interface
 	}
 	public static function extra_disk_details()
 	{
+		if(!phodevi::is_linux())
+		{
+			return null;
+		}
+
 		$device = self::proc_mount_options();
 		$mount_point = $device['mount-point'];
 		$extra_details = null;
@@ -426,6 +432,22 @@ class phodevi_disk extends phodevi_device_interface
 			if(($x = strpos($md, 'active')) !== false)
 			{
 				$extra_details = trim(substr($md, $x + 7));
+			}
+		}
+		if($extra_details == null && strpos($device['device'], 'bcache') !== false)
+		{
+			// Show Bcache details
+			$d = basename($device['device']);
+			if(is_file('/sys/block/' . $d . '/bcache/cache_mode'))
+			{
+				$cache_mode = file_get_contents('/sys/block/' . $d . '/bcache/cache_mode');
+				if(($x = strpos($cache_mode, '[')) !== false)
+				{
+					$cache_mode = substr($cache_mode, $x + 1);
+					$cache_mode = substr($cache_mode, 0, strpos($cache_mode, ']'));
+
+					$extra_details = trim('Bcache ' . $cache_mode);
+				}
 			}
 		}
 

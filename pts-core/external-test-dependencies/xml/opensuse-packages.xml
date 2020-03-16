@@ -9,7 +9,7 @@
 		</Information>
 		<Package>
 			<GenericName>common-dependencies</GenericName>
-			<PackageName>dmidecode Mesa-demo-x</PackageName>
+			<PackageName>Mesa-demo-x</PackageName>
 			<FileCheck>glxinfo</FileCheck>
 		</Package>
 		<Package>
@@ -29,6 +29,10 @@
 			<PackageName>freeglut-devel</PackageName>
 		</Package>
 		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>expat</PackageName>
+		</Package>
+		<Package>
 			<GenericName>openssl-development</GenericName>
 			<PackageName>libopenssl-devel</PackageName>
 		</Package>
@@ -37,12 +41,16 @@
 			<PackageName>tcsh</PackageName>
 		</Package>
 		<Package>
+			<GenericName>nasm</GenericName>
+			<PackageName>nasm</PackageName>
+		</Package>
+		<Package>
 			<GenericName>pcre</GenericName>
 			<PackageName>pcre-devel</PackageName>
 		</Package>
 		<Package>
 			<GenericName>libpng-development</GenericName>
-			<PackageName>libpng-devel</PackageName>
+			<PackageName>libpng16-devel</PackageName>
 		</Package>
 		<Package>
 			<GenericName>build-utilities</GenericName>
@@ -75,7 +83,7 @@
 		</Package>
 		<Package>
 			<GenericName>java</GenericName>
-			<PackageName>java-1_6_0-openjdk</PackageName>
+			<PackageName>java-1_8_0-openjdk</PackageName>
 			<FileCheck>/usr/lib/jvm/ OR /usr/lib64/jvm/</FileCheck>
 		</Package>
 		<Package>
@@ -91,6 +99,10 @@
 			<PackageName>glew-devel</PackageName>
 		</Package>
 		<Package>
+			<GenericName>meson</GenericName>
+			<PackageName>meson</PackageName>
+		</Package>
+		<Package>
 			<GenericName>freeimage</GenericName>
 			<PackageName>libfreeimage3 libfreeimage-devel</PackageName>
 		</Package>
@@ -104,7 +116,7 @@
 		</Package>
 		<Package>
 			<GenericName>jpeg-development</GenericName>
-			<PackageName>libjpeg-devel</PackageName>
+			<PackageName>libjpeg62-devel</PackageName>
 		</Package>
 		<Package>
 			<GenericName>libaio-development</GenericName>
@@ -113,6 +125,10 @@
 		<Package>
 			<GenericName>perl</GenericName>
 			<PackageName>perl</PackageName>
+		</Package>
+		<Package>
+			<GenericName>rust</GenericName>
+			<PackageName>rust cargo</PackageName>
 		</Package>
 		<Package>
 			<GenericName>xorg-video</GenericName>
@@ -184,11 +200,15 @@
 		</Package>
 		<Package>
 			<GenericName>boost-development</GenericName>
-			<PackageName>boost-devel</PackageName>
+			<PackageName></PackageName>
 		</Package>
 		<Package>
 			<GenericName>bzip2-development</GenericName>
 			<PackageName>libbz2-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>vulkan-development</GenericName>
+			<PackageName>vulkan</PackageName>
 		</Package>
 		<Package>
 			<GenericName>tcl</GenericName>
@@ -212,7 +232,7 @@
 		</Package>
 		<Package>
 			<GenericName>yasm</GenericName>
-			<PackageName>yasm</PackageName>
+			<PackageName>yasm nasm</PackageName>
 		</Package>
 		<Package>
 			<GenericName>tiff</GenericName>
@@ -224,7 +244,7 @@
 		</Package>
 		<Package>
 			<GenericName>gmp-library</GenericName>
-			<PackageName>libgmp3</PackageName>
+			<PackageName>gmp-devel</PackageName>
 		</Package>
 		<Package>
 			<GenericName>subversion</GenericName>
@@ -280,11 +300,59 @@
                 </Package>
 		<Package>
 			<GenericName>python-scipy</GenericName>
-			<PackageName>python-scipy</PackageName>
+			<PackageName>python2-scipy python3-scipy</PackageName>
 		</Package>
 		<Package>
-			<GenericName>python-sklearn</GenericName>
-			<PackageName>python-scikit-learn</PackageName>
+			<GenericName>V8</GenericName>
+			<PackageName>v8</PackageName>
+		</Package>
+		<Package>
+			<GenericName>ruby</GenericName>
+			<PackageName>ruby</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libevent</GenericName>
+			<PackageName>libevent-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<PackageName>wine</PackageName>
+		</Package>
+		<Package>
+			<GenericName>mongodb</GenericName>
+			<PackageName>mongodb</PackageName>
+		</Package>
+		<Package>
+			<GenericName>node-npm</GenericName>
+			<PackageName>npm</PackageName>
+		</Package>
+		<Package>
+			<GenericName>snappy</GenericName>
+			<PackageName>snappy-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>hdf5</GenericName>
+			<PackageName>hdf5-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libxml2</GenericName>
+			<PackageName>libxml2-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>uuid</GenericName>
+			<PackageName>uuid-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>clang</GenericName>
+			<PackageName>clang</PackageName>
+		</Package>
+		<Package>
+			<GenericName>gflags</GenericName>
+			<PackageName>gflags-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>google-benchmark</GenericName>
+			<PackageName>benchmark-devel</PackageName>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

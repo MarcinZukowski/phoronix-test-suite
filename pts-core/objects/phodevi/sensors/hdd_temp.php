@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2015, Phoronix Media
-	Copyright (C) 2009 - 2015, Michael Larabel
+	Copyright (C) 2009 - 2020, Phoronix Media
+	Copyright (C) 2009 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -91,8 +91,43 @@ class hdd_temp extends phodevi_sensor
 	}
 	private function hdd_temp_linux()
 	{
+		$temp = -1;
+
 		$disk_path = '/dev/' . $this->disk_to_monitor;
-		return phodevi_parser::read_hddtemp($disk_path);
+		$temp = phodevi_parser::read_hddtemp($disk_path);
+
+		if($temp == -1 && strpos($this->disk_to_monitor, 'nvme') !== false && ($nvme_cli = pts_client::executable_in_path('nvme')) && is_writable($disk_path))
+		{
+			$nvme_cli = shell_exec($nvme_cli . ' smart-log ' . str_replace(array('n1'), null, $disk_path));
+			if(($x = strpos($nvme_cli, 'temperature')) !== false)
+			{
+				$nvme_cli = substr($nvme_cli, $x);
+				$nvme_cli = substr($nvme_cli, strpos($nvme_cli, ':') + 1);
+				$nvme_cli = trim(substr($nvme_cli, 0, strpos($nvme_cli, ' C')));
+
+				if(is_numeric($nvme_cli) && $nvme_cli > 0)
+				{
+					$temp = $nvme_cli;
+				}
+			}
+		}
+
+		if($temp == -1)
+		{
+			$temp = phodevi_linux_parser::read_sysfs_node('/sys/class/hwmon/hwmon*/temp*_input', 'POSITIVE_NUMERIC', array('name' => 'nvme'));
+
+			if($temp == null)
+			{
+				$temp = phodevi_linux_parser::read_sysfs_node('/sys/class/hwmon/hwmon*/temp*_input', 'POSITIVE_NUMERIC', array('name' => 'drivetemp'));
+			}
+
+			if($temp > 1000)
+			{
+				$temp = round($temp / 1000, 2);
+			}
+		}
+
+		return $temp;
 	}
 }
 

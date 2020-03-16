@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2016, Phoronix Media
-	Copyright (C) 2009 - 2016, Michael Larabel
+	Copyright (C) 2009 - 2020, Phoronix Media
+	Copyright (C) 2009 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -84,7 +84,8 @@ class phoromatic extends pts_module_interface
 		phoromatic_server::prepare_database();
 		$root_admin_pw = phoromatic_server::read_setting('root_admin_pw');
 
-		if($root_admin_pw != null)
+		// DISABLED THE INITIAL CHECKING CODE SINCE REALLY WAS SILLY SINCE IF THEY ALREADY HAVE TERMINAL ACCESS, THEY CAN ACCESS FILE ANYWAY....
+		if(false && $root_admin_pw != null)
 		{
 			do
 			{
@@ -231,10 +232,7 @@ class phoromatic extends pts_module_interface
 				switch($server_response['phoromatic']['tick_thread'])
 				{
 					case 'reboot':
-						if(pts_client::executable_in_path('reboot'))
-						{
-							shell_exec('reboot');
-						}
+						phodevi::reboot();
 						break;
 					case 'halt-testing':
 						touch(PTS_USER_PATH . 'halt-testing');
@@ -467,19 +465,17 @@ class phoromatic extends pts_module_interface
 		$server_setup = self::setup_server_addressing($args);
 		//$http_comm = new phoromatic_client_comm_http();
 
+		/*
 		if(!$server_setup)
 		{
 			if(getenv('PTS_NO_REBOOT_ON_NETWORK_FAILURE') == false && PTS_IS_DAEMONIZED_SERVER_PROCESS)
 			{
-				if(pts_client::executable_in_path('reboot'))
-				{
-					shell_exec('reboot');
-					sleep(5);
-				}
+				phodevi::reboot();
 			}
 
 			return false;
 		}
+		*/
 
 		$times_failed = 0;
 		$has_success = false;
@@ -512,10 +508,9 @@ class phoromatic extends pts_module_interface
 					}
 					else if(PTS_IS_DAEMONIZED_SERVER_PROCESS && $times_failed > 10)
 					{
-						if(getenv('PTS_NO_REBOOT_ON_NETWORK_FAILURE') == false && pts_client::executable_in_path('reboot'))
+						if(getenv('PTS_NO_REBOOT_ON_NETWORK_FAILURE') == false)
 						{
-							shell_exec('reboot');
-							sleep(5);
+							phodevi::reboot();
 						}
 					}
 				}
@@ -570,6 +565,7 @@ class phoromatic extends pts_module_interface
 					$just_started = false;
 				}
 
+				pts_tests::clear_extra_env_vars();
 				if(isset($json['phoromatic']['pre_set_sys_env_vars']) && !empty($json['phoromatic']['pre_set_sys_env_vars']))
 				{
 					// pre_set_sys_env_vars was added during PTS 5.8 development
@@ -580,6 +576,7 @@ class phoromatic extends pts_module_interface
 						if(count($var) == 2)
 						{
 							putenv($var[0] . '=' . $var[1]);
+							pts_tests::add_extra_env_var($var[0], $var[1]);
 						}
 					}
 				}
@@ -699,7 +696,7 @@ class phoromatic extends pts_module_interface
 								//pts_client::$pts_logger->log('DEBUG RESPONSE MESSAGE: ' . $server_response);
 								if(!pts_strings::string_bool($json['phoromatic']['settings']['ArchiveResultsLocally']))
 								{
-									pts_client::remove_saved_result_file(self::$test_run_manager->get_file_name());
+									pts_results::remove_saved_result_file(self::$test_run_manager->get_file_name());
 								}
 							}
 
@@ -715,11 +712,7 @@ class phoromatic extends pts_module_interface
 					case 'reboot':
 						echo PHP_EOL . 'Phoromatic received a remote command to reboot.' . PHP_EOL;
 						phoromatic::update_system_status('Attempting System Reboot');
-						if(pts_client::executable_in_path('reboot'))
-						{
-							shell_exec('reboot');
-							sleep(5);
-						}
+						phodevi::reboot();
 						break;
 					case 'shutdown-if-supports-wake':
 						$supports_wol = false;
@@ -742,15 +735,11 @@ class phoromatic extends pts_module_interface
 
 						echo PHP_EOL . 'Phoromatic received a remote command to shutdown.' . PHP_EOL;
 						phoromatic::update_system_status('Attempting System Shutdown');
-						if(pts_client::executable_in_path('poweroff'))
-						{
-							shell_exec('poweroff');
-							sleep(5);
-						}
+						phodevi::shutdown();
 						break;
 					case 'maintenance':
 						echo PHP_EOL . 'Idling, system maintenance mode set by Phoromatic Server.' . PHP_EOL;
-						phoromatic::update_system_status('Maintenance Mode');
+						phoromatic::update_system_status('Maintenance Mode' . self::check_for_separate_pts_thread_process());
 						sleep(60);
 						break;
 					case 'idle':
@@ -759,7 +748,7 @@ class phoromatic extends pts_module_interface
 							self::run_client_update_script($json['phoromatic']['client_update_script']);
 						}
 						//echo PHP_EOL . 'Idling, waiting for task.' . PHP_EOL;
-						phoromatic::update_system_status('Idling, Waiting For Task');
+						phoromatic::update_system_status('Idling, Waiting For Task' . self::check_for_separate_pts_thread_process());
 						break;
 					case 'exit':
 						echo PHP_EOL . 'Phoromatic received a remote command to exit.' . PHP_EOL;
@@ -782,12 +771,29 @@ class phoromatic extends pts_module_interface
 
 		pts_client::release_lock(PTS_USER_PATH . 'phoromatic_lock');
 	}
+	private static function check_for_separate_pts_thread_process()
+	{
+		$report = null;
+		$log_file = pts_logger::default_log_file_path() . 'phoronix-test-suite-benchmark.log';
+		if(is_file($log_file) && filemtime($log_file) > (time() - 1200))
+		{
+			$log_file = pts_file_io::file_get_contents($log_file);
+			$log_file = substr($log_file, strrpos($log_file, PHP_EOL) + 1);
+			if(($x = strpos($log_file, ']')) !== false)
+			{
+				$log_file = substr($log_file, ($x + 1));
+			}
+			$report .= '; Separate Process: ' . trim($log_file);
+		}
+
+		return $report;
+	}
 	private static function upload_test_result(&$result_file, $upload_system_logs = true, $schedule_id = 0, $save_identifier = null, $trigger = null, $elapsed_time = 0, $benchmark_ticket_id = null)
 	{
 		$system_logs = null;
 		$system_logs_hash = null;
 		// TODO: Potentially integrate this code below shared with pts_openbenchmarking_client into a unified function for validating system log files
-		$system_log_dir = PTS_SAVE_RESULTS_PATH . $result_file->get_identifier() . '/system-logs/';
+		$system_log_dir = $result_file->get_system_log_dir();
 		if(is_dir($system_log_dir) && $upload_system_logs)
 		{
 			$is_valid_log = true;
@@ -901,7 +907,7 @@ class phoromatic extends pts_module_interface
 			$res = phoromatic::upload_to_remote_server(array(
 				'r' => 'stress_log_upload',
 				'bid' => self::$benchmark_ticket_id,
-				'l' => $stress_log
+				'l' => pts_user_io::strip_ansi_escape_sequences($stress_log)
 				));
 
 			$times_tried++;
@@ -1043,7 +1049,7 @@ class phoromatic extends pts_module_interface
 				));
 		}
 	}
-	public static function __pre_test_install($test_identifier)
+	public static function __pre_test_install(&$test_install_request)
 	{
 	/*	if(self::$has_run_server_setup_func == false)
 		{
@@ -1061,7 +1067,7 @@ class phoromatic extends pts_module_interface
 
 		if(time() > ($last_update_time + 30))
 		{
-			phoromatic::update_system_status('Installing: ' . $test_identifier);
+			phoromatic::update_system_status('Installing: ' . $test_install_request->test_profile->get_identifier());
 			$last_update_time = time();
 		}
 	}

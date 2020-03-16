@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2017, Phoronix Media
-	Copyright (C) 2008 - 2017, Michael Larabel
+	Copyright (C) 2008 - 2020, Phoronix Media
+	Copyright (C) 2008 - 2020, Michael Larabel
 	pts-core.php: To boot-strap the Phoronix Test Suite start-up
 
 	This program is free software; you can redistribute it and/or modify
@@ -101,6 +101,10 @@ function pts_define($name, $value = null)
 	{
 		return $defines;
 	}
+	else if(isset($defines[$name]))
+	{
+		return false;
+	}
 
 	$defines[$name] = $value;
 	define($name, $value);
@@ -109,7 +113,22 @@ function pts_define_directories()
 {
 	// User's home directory for storing results, module files, test installations, etc.
 	pts_define('PTS_CORE_PATH', PTS_PATH . 'pts-core/');
-	pts_define('PTS_IS_DAEMONIZED_SERVER_PROCESS', PTS_IS_CLIENT && is_dir('/var/lib/') && is_writable('/') ? true : false);
+
+	if(is_dir(PTS_PATH . 'ob-cache/'))
+	{
+		pts_define('PTS_INTERNAL_OB_CACHE', PTS_PATH . 'ob-cache/');
+	}
+	else
+	{
+		pts_define('PTS_INTERNAL_OB_CACHE', false);
+	}
+
+	pts_define('PTS_IS_DAEMONIZED_SERVER_PROCESS', PTS_IS_CLIENT && is_writable('/var/lib/') && is_writable('/etc') ? true : false);
+
+	if(($user_path_override = getenv('PTS_USER_PATH_OVERRIDE')) != false && is_dir($user_path_override))
+	{
+		pts_define('PTS_USER_PATH', $user_path_override);
+	}
 
 	if(PTS_IS_DAEMONIZED_SERVER_PROCESS)
 	{
@@ -120,9 +139,6 @@ function pts_define_directories()
 
 		pts_define('PTS_USER_PATH', '/var/lib/phoronix-test-suite/');
 		pts_define('PTS_CORE_STORAGE', PTS_USER_PATH . 'core.pt2so');
-		pts_define('PTS_TEMP_STORAGE', PTS_USER_PATH . 'temp.pt2so');
-		pts_define('PTS_MODULE_LOCAL_PATH', PTS_USER_PATH . 'modules/');
-		pts_define('PTS_MODULE_DATA_PATH', PTS_USER_PATH . 'modules-data/');
 		pts_define('PTS_DOWNLOAD_CACHE_PATH', '/var/cache/phoronix-test-suite/download-cache/');
 		pts_define('PTS_OPENBENCHMARKING_SCRATCH_PATH', '/var/cache/phoronix-test-suite/openbenchmarking.org/');
 		pts_define('PTS_TEST_PROFILE_PATH', PTS_USER_PATH . 'test-profiles/');
@@ -130,11 +146,15 @@ function pts_define_directories()
 	}
 	else if(PTS_IS_CLIENT)
 	{
-		pts_define('PTS_USER_PATH', pts_core::user_home_directory() . '.phoronix-test-suite' . DIRECTORY_SEPARATOR);
+		/* if(!is_dir(pts_core::user_home_directory() . '.phoronix-test-suite') && stripos(PHP_OS, 'win') !== false && getenv('AppData'))
+		{
+			pts_define('PTS_USER_PATH', getenv('AppData') . DIRECTORY_SEPARATOR . 'phoronix-test-suite' . DIRECTORY_SEPARATOR);
+		}
+		else
+		{ */
+			pts_define('PTS_USER_PATH', pts_core::user_home_directory() . '.phoronix-test-suite' . DIRECTORY_SEPARATOR);
+		//}
 		pts_define('PTS_CORE_STORAGE', PTS_USER_PATH . 'core.pt2so');
-		pts_define('PTS_TEMP_STORAGE', PTS_USER_PATH . 'temp.pt2so');
-		pts_define('PTS_MODULE_LOCAL_PATH', PTS_USER_PATH . 'modules/');
-		pts_define('PTS_MODULE_DATA_PATH', PTS_USER_PATH . 'modules-data/');
 		pts_define('PTS_DOWNLOAD_CACHE_PATH', PTS_USER_PATH . 'download-cache/');
 		pts_define('PTS_OPENBENCHMARKING_SCRATCH_PATH', PTS_USER_PATH . 'openbenchmarking.org/');
 		pts_define('PTS_TEST_PROFILE_PATH', PTS_USER_PATH . 'test-profiles/');
@@ -154,11 +174,7 @@ function pts_define_directories()
 	}
 
 	// Misc Locations
-	pts_define('PTS_MODULE_PATH', PTS_CORE_PATH . 'modules/');
 	pts_define('PTS_CORE_STATIC_PATH', PTS_CORE_PATH . 'static/');
-	pts_define('PTS_COMMAND_PATH', PTS_CORE_PATH . 'commands/');
-	pts_define('PTS_EXDEP_PATH', PTS_CORE_PATH . 'external-test-dependencies/');
-	pts_define('PTS_OPENBENCHMARKING_PATH', PTS_CORE_PATH . 'openbenchmarking.org/');
 
 	if(is_dir('/usr/local/share/phoronix-test-suite/'))
 	{
@@ -175,6 +191,16 @@ function pts_define_directories()
 	else
 	{
 		pts_define('PTS_SHARE_PATH', false);
+	}
+
+	if(!defined('PTS_TEST_SUITE_PATH') && defined('PTS_INTERNAL_OB_CACHE') && is_dir(PTS_INTERNAL_OB_CACHE . 'test-suites/'))
+	{
+		pts_define('PTS_TEST_SUITE_PATH', PTS_INTERNAL_OB_CACHE . 'test-suites/');
+	}
+
+	if(!defined('PTS_TEST_PROFILE_PATH') && defined('PTS_INTERNAL_OB_CACHE') && is_dir(PTS_INTERNAL_OB_CACHE . 'test-profiles/'))
+	{
+		pts_define('PTS_TEST_PROFILE_PATH', PTS_INTERNAL_OB_CACHE . 'test-profiles/');
 	}
 }
 function pts_needed_extensions()
@@ -196,11 +222,13 @@ function pts_needed_extensions()
 		array(0, function_exists('posix_getpwuid'), 'POSIX', 'POSIX support is highly recommended.'),
 		array(0, function_exists('curl_init'), 'CURL', 'CURL is recommended for an enhanced download experience.'),
 		array(0, function_exists('socket_create_listen'), 'Sockets', 'Sockets is needed when running the Phoromatic Server.'),
+		array(0, function_exists('readline'), 'Readline', 'Readline support is useful for tab-based auto-completion support.'),
 		);
 }
 function pts_version_codenames()
 {
-	// Lots of inspiration for codenames from Norwegian municipalities
+	// Lots of inspiration for codenames often from Norwegian municipalities
+	// https://en.wikipedia.org/wiki/List_of_municipalities_of_Norway
 	return array(
 		// Sør-Trøndelag - Norway
 		'1.0' => 'Trondheim',
@@ -245,12 +273,26 @@ function pts_version_codenames()
 		'7.4' => 'Tynset',
 		'7.6' => 'Alvdal',
 		'7.8' => 'Folldal',
+		// Østfold - Norway
+		'8.0' => 'Aremark',
+		'8.2' => 'Rakkestad',
+		'8.4' => 'Skiptvet',
+		'8.6' => 'Spydeberg',
+		'8.8' => 'Hvaler',
+		// Akershus - Norway
+		'9.0' => 'Asker',
+		'9.2' => 'Hurdal',
+		'9.4' => 'Vestby',
+		'9.6' => 'Nittedal',
+		'9.8' => 'Nesodden',
 		);
 }
 
-pts_define('PTS_VERSION', '7.2.0m2');
-pts_define('PTS_CORE_VERSION', 7120);
-pts_define('PTS_CODENAME', 'TRYSIL');
+pts_define('PTS_VERSION', '9.6.0m0');
+pts_define('PTS_CORE_VERSION', 9500);
+pts_define('PTS_RELEASE_DATE', '20200304');
+pts_define('PTS_CODENAME', 'Nittedal');
+
 pts_define('PTS_IS_CLIENT', (defined('PTS_MODE') && strstr(PTS_MODE, 'CLIENT') !== false));
 pts_define('PTS_IS_WEB_CLIENT', (defined('PTS_MODE') && PTS_MODE == 'WEB_CLIENT'));
 pts_define('PTS_IS_DEV_BUILD', (substr(PTS_VERSION, -2, 1) == 'm'));
@@ -272,7 +314,7 @@ if(PTS_IS_CLIENT || defined('PTS_AUTO_LOAD_OBJECTS'))
 			{
 				if($file != '.' && $file != '..')
 				{
-					if(is_dir($dir . '/' . $file) && (PTS_IS_CLIENT || $file != 'client'))
+					if(is_dir($dir . '/' . $file) && ((PTS_IS_CLIENT || defined('PTS_AUTO_LOAD_ALL_OBJECTS')) || $file != 'client'))
 					{
 						// The client folder should contain classes exclusively used by the client
 						pts_build_dir_php_list($dir . '/' . $file, $files);
@@ -300,6 +342,8 @@ if(PTS_IS_CLIENT || defined('PTS_AUTO_LOAD_OBJECTS'))
 			include($obj_files[$to_load]);
 			unset($obj_files[$to_load]);
 		}
+
+		return class_exists($to_load, false);
 	}
 	spl_autoload_register('pts_auto_load_class');
 }
@@ -311,6 +355,11 @@ if(PTS_IS_CLIENT && ini_get('date.timezone') == null)
 	if(is_executable('/bin/date') && function_exists('timezone_name_from_abbr'))
 	{
 		$tz = timezone_name_from_abbr(trim(shell_exec('date +%Z 2> /dev/null')));
+	}
+	else if(strtoupper(substr(PHP_OS, 0, 3)) == 'WIN')
+	{
+		$tz = trim(shell_exec('powershell "(Get-TimeZone).BaseUtcOffset.Hours"'));
+		$tz = is_numeric($tz) ? timezone_name_from_abbr('', ($tz * 60 * 60), 0) : null;
 	}
 
 	if($tz == null || !in_array($tz, timezone_identifiers_list()))

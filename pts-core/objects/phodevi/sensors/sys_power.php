@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2017, Phoronix Media
-	Copyright (C) 2009 - 2017, Michael Larabel
+	Copyright (C) 2009 - 2019, Phoronix Media
+	Copyright (C) 2009 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -30,12 +30,16 @@ class sys_power extends phodevi_sensor
 	private static $tegra_power = false;
 	private static $wattsup_meter = false;
 	private static $ipmitool = false;
+	private static $ipmitool_ps = false;
+	private static $ipmitool_dcmi = false;
+	private static $windows_battery = false;
+	private static $hwmon_power_meter = false;
 
 	public static function get_unit()
 	{
 		$unit = null;
 
-		if(self::$battery_sys || self::$tegra_power)
+		if(self::$battery_sys || self::$tegra_power || self::$windows_battery)
 		{
 			$unit = 'Milliwatts';
 		}
@@ -43,7 +47,7 @@ class sys_power extends phodevi_sensor
 		{
 			$unit = 'microAmps';
 		}
-		else if(self::$wattsup_meter || self::$ipmitool)
+		else
 		{
 			$unit = 'Watts';
 		}
@@ -52,6 +56,25 @@ class sys_power extends phodevi_sensor
 	}
 	public function support_check()
 	{
+		if(phodevi::is_windows())
+		{
+			if(self::windows_wmi_battery_status_discharge() > 0)
+			{
+				self::$windows_battery = true;
+			}
+			return true;
+		}
+		if(pts_client::executable_in_path('wattsup'))
+		{
+			$wattsup = self::watts_up_power_meter();
+
+			if($wattsup > 0.5 && is_numeric($wattsup))
+			{
+				self::$wattsup_meter = true;
+				return true;
+			}
+		}
+
 		$test = self::sys_battery_power();
 		if(is_numeric($test) && $test != -1)
 		{
@@ -66,16 +89,6 @@ class sys_power extends phodevi_sensor
 			return true;
 		}
 
-		if(pts_client::executable_in_path('wattsup'))
-		{
-			$wattsup = self::watts_up_power_meter();
-
-			if($wattsup > 0.5 && is_numeric($wattsup))
-			{
-				self::$wattsup_meter = true;
-				return true;
-			}
-		}
 		if(is_readable('/sys/bus/i2c/drivers/ina3221x/0-0041/iio:device1/in_power0_input'))
 		{
 			$in_power0_input = pts_file_io::file_get_contents('/sys/bus/i2c/drivers/ina3221x/0-0041/iio:device1/in_power0_input');
@@ -86,6 +99,13 @@ class sys_power extends phodevi_sensor
 			}
 		}
 
+		$hwmon_power = phodevi_linux_parser::read_sysfs_node('/sys/class/hwmon/hwmon*/device/power*_average', 'POSITIVE_NUMERIC', array('name' => 'power_meter'), 1, true);
+		if($hwmon_power != -1)
+		{
+			// Intel node manager -Meter measures total domain
+			self::$hwmon_power_meter = $hwmon_power;
+			return true;
+		}
 		if(pts_client::executable_in_path('ipmitool'))
 		{
 			$ipmi_read = phodevi_linux_parser::read_ipmitool_sensor('Node Power');
@@ -93,6 +113,22 @@ class sys_power extends phodevi_sensor
 			if($ipmi_read > 0 && is_numeric($ipmi_read))
 			{
 				self::$ipmitool = true;
+				return true;
+			}
+
+			$ipmi_read = phodevi_linux_parser::read_ipmitool_dcmi_power();
+
+			if($ipmi_read > 0 && is_numeric($ipmi_read))
+			{
+				self::$ipmitool_dcmi = true;
+				return true;
+			}
+
+			$ipmi_ps1 = phodevi_linux_parser::read_ipmitool_sensor('PS1_Input_Power');
+			//$ipmi_ps2 = phodevi_linux_parser::read_ipmitool_sensor('PS2_Input_Power');
+			if(is_numeric($ipmi_ps1) && $ipmi_ps1 > 1)
+			{
+				self::$ipmitool_ps = true;
 				return true;
 			}
 		}
@@ -121,6 +157,39 @@ class sys_power extends phodevi_sensor
 		else if(self::$ipmitool)
 		{
 			return phodevi_linux_parser::read_ipmitool_sensor('Node Power');
+		}
+		else if(self::$ipmitool_ps)
+		{
+			return phodevi_linux_parser::read_ipmitool_sensor('PS1_Input_Power', 0) + phodevi_linux_parser::read_ipmitool_sensor('PS2_Input_Power', 0);
+		}
+		else if(self::$ipmitool_dcmi)
+		{
+			return phodevi_linux_parser::read_ipmitool_dcmi_power();
+		}
+		else if(self::$windows_battery)
+		{
+			return self::windows_wmi_battery_status_discharge();
+		}
+		else if(self::$hwmon_power_meter)
+		{
+			$p = pts_file_io::file_get_contents(self::$hwmon_power_meter);
+			if($p > 1000000)
+			{
+				$p = $p / 1000000;
+			}
+			return $p;
+		}
+	}
+	private static function windows_wmi_battery_status_discharge()
+	{
+		$output = trim(shell_exec('powershell (Get-WmiObject -Namespace "root\wmi" BatteryStatus).DischargeRate'));
+		if(!empty($output) && is_numeric($output) && $output > 0)
+		{
+			return $output;
+		}
+		else
+		{
+			return -1;
 		}
 	}
 	private static function watts_up_power_meter()

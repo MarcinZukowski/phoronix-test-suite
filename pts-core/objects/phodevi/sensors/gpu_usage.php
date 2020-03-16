@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2015, Phoronix Media
-	Copyright (C) 2009 - 2015, Michael Larabel
+	Copyright (C) 2009 - 2018, Phoronix Media
+	Copyright (C) 2009 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -28,7 +28,6 @@ class gpu_usage extends phodevi_sensor
 	const SENSOR_SENSES = 'usage';
 	const SENSOR_UNIT = 'Percent';
 
-	private $probe_ati_overdrive = false;
 	private $probe_radeontop = false;
 	private $probe_nvidia_smi = false;
 	private $probe_nvidia_settings = false;
@@ -50,11 +49,7 @@ class gpu_usage extends phodevi_sensor
 	{
 		$gpu_usage = -1;
 
-		if($this->probe_ati_overdrive)
-		{
-			$gpu_usage = self::ati_overdrive_core_usage();
-		}
-		else if($this->probe_nvidia_settings)
+		if($this->probe_nvidia_settings)
 		{
 			$gpu_usage = self::read_nvidia_settings_gpu_utilization();
 		}
@@ -66,21 +61,21 @@ class gpu_usage extends phodevi_sensor
 		{
 			$gpu_usage = self::radeontop_gpu_usage();
 		}
+		else if(is_file('/sys/class/drm/card0/device/gpu_busy_percent'))
+		{
+			$gpu_usage = pts_file_io::file_get_contents('/sys/class/drm/card0/device/gpu_busy_percent');
+		}
 
 		return $gpu_usage;
 	}
 
 	private function set_probe_mode()
 	{
-		if(phodevi::is_ati_graphics() && phodevi::is_linux())
-		{
-			$this->probe_ati_overdrive = true;
-		}
-		else if(phodevi::is_mesa_graphics() && pts_client::executable_in_path('radeontop'))
+		if(phodevi::is_mesa_graphics() && pts_client::executable_in_path('radeontop'))
 		{
 			$this->probe_radeontop = true;
 		}
-		else if(phodevi::is_nvidia_graphics())
+		else if(phodevi::is_nvidia_graphics() || pts_client::executable_in_path('nvidia-smi'))
 		{
 			$util = $this->read_nvidia_settings_gpu_utilization();
 
@@ -119,18 +114,12 @@ class gpu_usage extends phodevi_sensor
 
 		return false;
 	}
-
-	private static function ati_overdrive_core_usage()
-	{
-		return phodevi_linux_parser::read_ati_overdrive('GPUload');
-	}
-
 	private static function nvidia_core_usage()
 	{
-		$nvidia_smi = shell_exec('nvidia-smi -a');
+		$nvidia_smi = shell_exec(escapeshellarg(pts_client::executable_in_path('nvidia-smi')) . ' -a');
 
 		$util = substr($nvidia_smi, strpos($nvidia_smi, 'Utilization'));
-		$util = substr($util, strpos($util, 'GPU'));
+		$util = substr($util, stripos($util, 'GPU'));
 		$util = substr($util, strpos($util, ':') + 1);
 		$util = trim(substr($util, 0, strpos($util, '%')));
 

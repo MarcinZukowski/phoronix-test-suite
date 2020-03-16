@@ -4,9 +4,14 @@
 	<ExternalDependencies>
 		<Information>
 			<Name>Fedora</Name>
-			<Aliases>Moblin, MeeGo, Amazon, Red Hat Enterprise, Red Hat Enterprise Server, Scientific, ScientificSL, CentOS, ClearOS, ClearOS Core Server, Oracle Server, OLPC</Aliases>
+			<Aliases>Moblin, MeeGo, Amazon, Red Hat Enterprise, Red Hat Enterprise Server, Scientific, ScientificSL, ClearOS, ClearOS Core Server, Oracle Server, OLPC</Aliases>
 			<PackageManager>yum</PackageManager>
 		</Information>
+		<Package>
+			<GenericName>common-dependencies</GenericName>
+			<PackageName>unzip bzip2</PackageName>
+			<FileCheck>unzip, bzip2</FileCheck>
+		</Package>
 		<Package>
 			<GenericName>32bit-compatibility</GenericName>
 			<PackageName>glibc.i686 libstdc++.i686 libX11.i686 libXext.i686 libXrandr.i686 libXinerama.i686 mesa-libGL.i686 openal-soft.i686</PackageName>
@@ -34,6 +39,18 @@
 			<PackageName>freeglut-devel</PackageName>
 		</Package>
 		<Package>
+			<GenericName>nasm</GenericName>
+			<PackageName>nasm</PackageName>
+		</Package>
+		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>expat</PackageName>
+		</Package>
+		<Package>
+			<GenericName>vulkan-development</GenericName>
+			<PackageName>vulkan-devel</PackageName>
+		</Package>
+		<Package>
 			<GenericName>openssl-development</GenericName>
 			<PackageName>openssl-devel</PackageName>
 		</Package>
@@ -51,12 +68,8 @@
 		</Package>
 		<Package>
 			<GenericName>build-utilities</GenericName>
-			<PackageName>gcc gcc-c++ make autoconf automake glibc-static patch</PackageName>
+			<PackageName>gcc gcc-c++ make autoconf automake patch expat-devel</PackageName>
 			<FileCheck>gcc, c++</FileCheck>
-		</Package>
-		<Package>
-			<GenericName>xorg-development</GenericName>
-			<PackageName>xorg-x11-server-devel</PackageName>
 		</Package>
 		<Package>
 			<GenericName>bison</GenericName>
@@ -73,6 +86,10 @@
 		<Package>
 			<GenericName>java</GenericName>
 			<PackageName>java-openjdk</PackageName>
+		</Package>
+		<Package>
+			<GenericName>maven</GenericName>
+			<PackageName>maven</PackageName>
 		</Package>
 		<Package>
 			<GenericName>portaudio-development</GenericName>
@@ -128,7 +145,7 @@
 		</Package>
 		<Package>
 			<GenericName>p7zip</GenericName>
-			<PackageName>p7zip</PackageName>
+			<PackageName>p7zip p7zip-plugins</PackageName>
 		</Package>
 		<Package>
 			<GenericName>openal-development</GenericName>
@@ -147,12 +164,20 @@
 			<PackageName>qt4-devel</PackageName>
 		</Package>
 		<Package>
+			<GenericName>qt5-development</GenericName>
+			<PackageName>qt5-qtbase-devel qt5-devel</PackageName>
+		</Package>
+		<Package>
 			<GenericName>autoconf</GenericName>
 			<PackageName>autoconf</PackageName>
 		</Package>
 		<Package>
 			<GenericName>libtool</GenericName>
 			<PackageName>libtool</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libevent</GenericName>
+			<PackageName>libevent-devel</PackageName>
 		</Package>
 		<Package>
 			<GenericName>ncurses-development</GenericName>
@@ -163,12 +188,16 @@
 			<PackageName>popt-devel</PackageName>
 		</Package>
 		<Package>
+			<GenericName>meson</GenericName>
+			<PackageName>meson</PackageName>
+		</Package>
+		<Package>
 			<GenericName>numa-development</GenericName>
 			<PackageName>numactl-devel</PackageName>
 		</Package>
 		<Package>
 			<GenericName>curl</GenericName>
-			<PackageName>libcurl curl</PackageName>
+			<PackageName>libcurl curl libcurl-devel curl-devel</PackageName>
 		</Package>
 		<Package>
 			<GenericName>smartmontools</GenericName>
@@ -195,6 +224,10 @@
 			<PackageName>boost-devel boost-thread</PackageName>
 		</Package>
 		<Package>
+			<GenericName>rust</GenericName>
+			<PackageName>rust cargo</PackageName>
+		</Package>
+		<Package>
 			<GenericName>bzip2-development</GenericName>
 			<PackageName>bzip2-devel</PackageName>
 		</Package>
@@ -208,7 +241,7 @@
 		</Package>
 		<Package>
 			<GenericName>python</GenericName>
-			<PackageName>python</PackageName>
+			<PackageName>python python3 python3-pip python3-yaml</PackageName>
 		</Package>
 		<Package>
 			<GenericName>atlas-development</GenericName>
@@ -216,12 +249,12 @@
 		</Package>
 		<Package>
 			<GenericName>openmpi-development</GenericName>
-			<PackageName>openmpi-devel openmpi mpich2-devel</PackageName>
+			<PackageName>openmpi-devel openmpi</PackageName>
 			<FileCheck>openmpi/lib/libmpi.so</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>yasm</GenericName>
-			<PackageName>yasm</PackageName>
+			<PackageName>yasm nasm</PackageName>
 		</Package>
 		<Package>
 			<GenericName>lib3ds</GenericName>
@@ -286,6 +319,54 @@
 		<Package>
 			<GenericName>python-sklearn</GenericName>
 			<PackageName>python-scikit-learn</PackageName>
+		</Package>
+		<Package>
+			<GenericName>V8</GenericName>
+			<PackageName>v8</PackageName>
+		</Package>
+		<Package>
+			<GenericName>ruby</GenericName>
+			<PackageName>ruby</PackageName>
+		</Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<PackageName>wine</PackageName>
+		</Package>
+		<Package>
+			<GenericName>mongodb</GenericName>
+			<PackageName>mongodb</PackageName>
+		</Package>
+		<Package>
+			<GenericName>node-npm</GenericName>
+			<PackageName>npm</PackageName>
+		</Package>
+		<Package>
+			<GenericName>hdf5</GenericName>
+			<PackageName>hdf5-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libxml2</GenericName>
+			<PackageName>libxml2-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>uuid</GenericName>
+			<PackageName>uuid-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>clang</GenericName>
+			<PackageName>clang</PackageName>
+		</Package>
+		<Package>
+			<GenericName>gflags</GenericName>
+			<PackageName>gflags-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>google-benchmark</GenericName>
+			<PackageName>google-benchmark-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>snappy</GenericName>
+			<PackageName>snappy-devel</PackageName>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

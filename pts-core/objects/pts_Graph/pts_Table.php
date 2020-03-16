@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2017, Phoronix Media
-	Copyright (C) 2009 - 2017, Michael Larabel
+	Copyright (C) 2009 - 2019, Phoronix Media
+	Copyright (C) 2009 - 2019, Michael Larabel
 	pts_Table.php: A charting table object for pts_Graph
 
 	This program is free software; you can redistribute it and/or modify
@@ -68,6 +68,42 @@ class pts_Table extends pts_graph_core
 			if(($column instanceof pts_graph_ir_value) == false)
 			{
 				$column = new pts_graph_ir_value($column);
+			}
+		}
+	}
+	public static function report_system_notes_to_table(&$result_file, &$table)
+	{
+		$identifier_count = $result_file->get_system_count();
+		$system_attributes = pts_result_file_analyzer::system_notes_to_formatted_array($result_file);
+
+		foreach($system_attributes as $index_name => $attributes)
+		{
+			$unique_attribue_count = count(array_unique($attributes));
+
+			$section = $identifier_count > 1 ? ucwords($index_name) : null;
+
+			switch($unique_attribue_count)
+			{
+				case 0:
+					break;
+				case 1:
+					if($identifier_count == count($attributes))
+					{
+						// So there is something for all of the test runs and it's all the same...
+						$table->addTestNote(array_pop($attributes), null, $section);
+					}
+					else
+					{
+						// There is missing data for some test runs for this value so report the runs this is relevant to.
+						$table->addTestNote(implode(', ', array_keys($attributes)) . ': ' . array_pop($attributes), null, $section);
+					}
+					break;
+				default:
+					foreach($attributes as $identifier => $configuration)
+					{
+						$table->addTestNote($identifier . ': ' . $configuration, null, $section);
+					}
+					break;
 			}
 		}
 	}
@@ -142,7 +178,7 @@ class pts_Table extends pts_graph_core
 		}
 
 		$this->i['top_heading_height'] = 8;
-		if($this->graph_title != null)
+		if($this->i['graph_title'] != null)
 		{
 			$this->i['top_heading_height'] += round(self::$c['size']['headers'] + (count($this->graph_sub_titles) * (self::$c['size']['sub_headers'] + 4)));
 		}
@@ -150,7 +186,7 @@ class pts_Table extends pts_graph_core
 		$table_max_value_width = ceil($this->text_string_width($this->i['graph_max_value'], $this->i['identifier_size']) * 1.02) + 2;
 
 		$table_item_width = max($table_max_value_width, $table_identifier_width) + 2;
-		$table_width = max(($table_item_width * count($this->columns)), floor($this->text_string_width($this->graph_title, 12) / $table_item_width) * $table_item_width);
+		$table_width = max(($table_item_width * count($this->columns)), floor($this->text_string_width($this->i['graph_title'], 12) / $table_item_width) * $table_item_width);
 		//$table_width = $table_item_width * count($this->columns);
 		$table_line_height = round($this->text_string_height($this->i['graph_max_value'], $this->i['identifier_size']) + 8);
 		$table_line_height_half = round($table_line_height / 2);
@@ -192,10 +228,11 @@ class pts_Table extends pts_graph_core
 		$this->svg_dom->draw_svg_line($this->i['left_start'], $v, $table_columns_end + ($table_columns_end < $this->i['graph_width'] ? $table_item_width : 0), $v, self::$c['color']['border'], $table_height + $top_identifier_height, array('stroke-dasharray' => '1,' . ($table_item_width - 1)));
 
 		// Heading
-		if($this->graph_title != null)
+		if($this->i['graph_title'] != null)
 		{
 			$this->svg_dom->add_element('rect', array('x' => 1, 'y' => 1, 'width' => ($this->i['graph_width'] - 2), 'height' => $this->i['top_heading_height'], 'fill' => self::$c['color']['main_headers']));
-			$this->svg_dom->add_text_element($this->graph_title, array('x' => 5, 'y' => (self::$c['size']['headers'] + 2), 'font-size' => self::$c['size']['headers'], 'fill' => self::$c['color']['background'], 'text-anchor' => 'start'));
+			if(!$this->is_multi_way)
+				$this->svg_dom->add_text_element($this->i['graph_title'], array('x' => 5, 'y' => (self::$c['size']['headers'] + 2), 'font-size' => self::$c['size']['headers'], 'fill' => self::$c['color']['background'], 'text-anchor' => 'start'));
 
 			foreach($this->graph_sub_titles as $i => $sub_title)
 			{
@@ -248,7 +285,7 @@ class pts_Table extends pts_graph_core
 						continue;
 					}
 
-					$paint_color = $this->get_paint_color($identifier[0]);
+					//$paint_color = $this->get_paint_color($system_identifier);
 
 					if($this->i['top_heading_height'] > 0)
 					{
@@ -258,11 +295,11 @@ class pts_Table extends pts_graph_core
 					$x = $this->i['left_start'] + 1 + ($last_changed_col * $table_item_width);
 					$x_end = ($this->i['left_start'] + ($last_changed_col * $table_item_width)) + ($table_item_width * ($current_col - $last_changed_col));
 
-					$this->svg_dom->add_element('rect', array('x' => $x, 'y' => 0, 'width' => ($table_item_width * ($current_col - $last_changed_col)) - 2, 'height' => $extra_heading_height, 'fill' => $paint_color), $g1);
+					//$this->svg_dom->add_element('rect', array('x' => $x, 'y' => 0, 'width' => ($table_item_width * ($current_col - $last_changed_col)) - 2, 'height' => $extra_heading_height, 'fill' => $paint_color), $g1);
 
 					if($identifier[0] != 'Temp')
 					{
-						$this->svg_dom->draw_svg_line(($this->i['left_start'] + ($current_col * $table_item_width) + 1), 1, ($this->i['left_start'] + ($current_col * $table_item_width) + 1), $table_proper_height, $paint_color, 1);
+						$this->svg_dom->draw_svg_line(($this->i['left_start'] + ($current_col * $table_item_width) + 1), 1, ($this->i['left_start'] + ($current_col * $table_item_width) + 1), $table_proper_height, self::$c['color']['background'], 1);
 					}
 
 					//$x = $this->i['left_start'] + ($last_changed_col * $table_item_width) + ($this->i['left_start'] + ($current_col * $table_item_width) - $this->i['left_start'] + ($last_changed_col * $table_item_width));

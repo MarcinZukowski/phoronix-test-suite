@@ -38,9 +38,10 @@ class gpu_fanspeed extends phodevi_sensor
 			// nvidia-settings --describe GPUFanTarget 
 			$fan_speed = phodevi_parser::read_nvidia_extension('[fan:0]/GPUCurrentFanSpeed');
 		}
-		else if(phodevi::is_ati_graphics() && phodevi::is_linux())
+		else if($fan1_input = phodevi_linux_parser::read_sysfs_node('/sys/class/drm/card0/device/hwmon/hwmon*/fan1_input', 'POSITIVE_NUMERIC'))
 		{
-			$fan_speed = phodevi_linux_parser::read_ati_overdrive('FanSpeed');
+			// AMDGPU path
+			$fan_speed = round($fan1_input / phodevi_linux_parser::read_sysfs_node('/sys/class/drm/card0/device/hwmon/hwmon*/fan1_max', 'POSITIVE_NUMERIC') * 100, 2);
 		}
 
 		return $fan_speed;

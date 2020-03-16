@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2015, Phoronix Media
-	Copyright (C) 2009 - 2015, Michael Larabel
+	Copyright (C) 2009 - 2019, Phoronix Media
+	Copyright (C) 2009 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -57,6 +57,7 @@ class cpu_temp extends phodevi_sensor
 			{
 				$cpu_temp = substr($cpu_temp, 0, $end);
 			}
+			$cpu_temp = trim($cpu_temp);
 
 			if(is_numeric($cpu_temp))
 			{
@@ -85,19 +86,23 @@ class cpu_temp extends phodevi_sensor
 	{
 		$temp_c = -1;
 		// Try hwmon interface
-		$raw_temp = phodevi_linux_parser::read_sysfs_node('/sys/class/hwmon/hwmon*/temp2_input', 'POSITIVE_NUMERIC', array('name' => 'coretemp'));
+		$raw_temp = phodevi_linux_parser::read_sysfs_node('/sys/class/hwmon/hwmon*/temp*_input', 'POSITIVE_NUMERIC', array('name' => 'coretemp'));
 
 		if($raw_temp == -1)
 		{
-			$raw_temp = phodevi_linux_parser::read_sysfs_node('/sys/class/hwmon/hwmon*/device/temp1_input', 'POSITIVE_NUMERIC', array('name' => 'k10temp'));
+			$raw_temp = phodevi_linux_parser::read_sysfs_node('/sys/class/hwmon/hwmon*/temp*_input', 'POSITIVE_NUMERIC', array('name' => 'k10temp'));
 		}
 
 		if($raw_temp == -1)
 		{
 			// Try ACPI thermal
-			// Assuming the system thermal sensor comes 2nd to the ACPI CPU temperature
-			// It appears that way on a ThinkPad T60, but TODO find a better way to validate
-			$raw_temp = phodevi_linux_parser::read_sysfs_node('/sys/class/thermal/thermal_zone*/temp', 'POSITIVE_NUMERIC', null, 2);
+			$raw_temp = phodevi_linux_parser::read_sysfs_node('/sys/class/thermal/thermal_zone*/temp', 'POSITIVE_NUMERIC', array('type' => 'cpu_thermal'));
+		}
+
+		if($raw_temp == -1)
+		{
+			// Try ACPI thermal (Tegra works here)
+			$raw_temp = phodevi_linux_parser::read_sysfs_node('/sys/class/thermal/thermal_zone*/temp', 'POSITIVE_NUMERIC', array('type' => 'CPU-therm'));
 		}
 
 		if($raw_temp != -1)
@@ -123,11 +128,15 @@ class cpu_temp extends phodevi_sensor
 
 		if(pts_client::executable_in_path('ipmitool'))
 		{
-			$ipmi = phodevi_linux_parser::read_ipmitool_sensor('Temp 0');
+			foreach(array('CPU Core Temp 1', 'CPU Core Temp 2',
+					'CPU Core Temp 3', 'Temp 0') as $s) {
 
-			if($ipmi > 0 && is_numeric($ipmi))
-			{
-				$temp_c = $ipmi;
+				$ipmi = phodevi_linux_parser::read_ipmitool_sensor($s);
+				if($ipmi > 0 && is_numeric($ipmi))
+				{
+					$temp_c = $ipmi;
+					return $temp_c;
+				}
 			}
 		}
 		

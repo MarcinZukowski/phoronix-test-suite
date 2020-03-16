@@ -2,8 +2,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2017, Phoronix Media
-	Copyright (C) 2008 - 2017, Michael Larabel
+	Copyright (C) 2008 - 2019, Phoronix Media
+	Copyright (C) 2008 - 2019, Michael Larabel
 	pts_HorizontalBarGraph.php: The horizontal bar graph object that extends pts_Graph.php
 
 	This program is free software; you can redistribute it and/or modify
@@ -30,6 +30,8 @@ class pts_graph_horizontal_bars extends pts_graph_core
 		$this->i['graph_orientation'] = 'HORIZONTAL';
 		$this->i['identifier_height'] = -1;
 
+		$this->i['skip_headers'] = false;
+
 		if(isset($extra_attributes['make_identifiers_web_links']) && !empty($extra_attributes['make_identifiers_web_links']))
 		{
 			$this->make_identifiers_web_links = $extra_attributes['make_identifiers_web_links'];
@@ -47,17 +49,23 @@ class pts_graph_horizontal_bars extends pts_graph_core
 		{
 			$this->svg_dom->draw_svg_line($this->i['left_start'], $this->i['top_start'] + $this->i['identifier_height'], $this->i['left_start'], $this->i['graph_top_end'] - ($this->i['graph_height'] % $this->i['identifier_height']), self::$c['color']['notches'], 11, array('stroke-dasharray' => 1 . ',' . ($this->i['identifier_height'] - 1)));
 		}
-		$middle_of_vert = round($this->i['top_start'] + ($this->is_multi_way_comparison ? 5 : 0) - ($this->i['identifier_height'] * 0.5) - 2);
+		$middle_of_vert = round($this->i['top_start'] + ($this->i['is_multi_way_comparison'] ? 5 : 0) - ($this->i['identifier_height'] * 0.5) - 2);
 
-		$g = $this->svg_dom->make_g(array('font-size' => $this->i['identifier_size'], 'fill' => self::$c['color']['headers'], 'font-weight' => 'bold'));
+		$g = array('font-size' => $this->i['identifier_size'], 'fill' => self::$c['color']['headers'], 'font-weight' => 'bold');
+		if($this->i['is_multi_way_comparison'])
+		{
+			$g['font-size']--;
+			unset($g['font-weight']);
+		}
+		$g = $this->svg_dom->make_g($g);
 		foreach($this->graph_identifiers as $identifier)
 		{
 			$middle_of_vert += $this->i['identifier_height'];
-			if($this->is_multi_way_comparison)
+			if($this->i['is_multi_way_comparison'])
 			{
-				foreach(explode(' - ', $identifier) as $i => $identifier_line)
+				foreach(array_reverse(explode(' - ', $identifier)) as $i => $identifier_line)
 				{
-					$x = 8;
+					$x = 8 + ($i * (1.2 * $this->i['identifier_size']));
 					$this->svg_dom->add_text_element($identifier_line, array('x' => $x, 'y' => $middle_of_vert, 'text-anchor' => 'middle', 'transform' => 'rotate(90 ' . $x . ' ' . $middle_of_vert . ')'), $g);
 				}
 			}
@@ -88,7 +96,7 @@ class pts_graph_horizontal_bars extends pts_graph_core
 	{
 		$bar_count = count($this->results);
 		$separator_height = ($a = (6 - (floor($bar_count / 2) * 2))) > 0 ? $a : 0;
-		$bar_height = floor(($this->i['identifier_height'] - ($this->is_multi_way_comparison ? 4 : 0) - $separator_height - ($bar_count * $separator_height)) / $bar_count);
+		$bar_height = floor(($this->i['identifier_height'] - ($this->i['is_multi_way_comparison'] ? 4 : 0) - $separator_height - ($bar_count * $separator_height)) / $bar_count);
 		$this->i['graph_max_value'] = $this->i['graph_max_value'] != 0 ? $this->i['graph_max_value'] : 1;
 		$work_area_width = $this->i['graph_left_end'] - $this->i['left_start'];
 
@@ -106,7 +114,7 @@ class pts_graph_horizontal_bars extends pts_graph_core
 			foreach($group as &$buffer_item)
 			{
 				// if identifier is 0, not a multi-way comparison or anything special
-				if($identifier == 0 && !$this->is_multi_way_comparison)
+				if($identifier == 0 && !$this->i['is_multi_way_comparison'])
 				{
 					// See if the result identifier matches something to be color-coded better
 					$paint_color = self::identifier_to_branded_color($buffer_item->get_result_identifier(), $this->get_paint_color($identifier));
@@ -115,24 +123,21 @@ class pts_graph_horizontal_bars extends pts_graph_core
 				$value = $buffer_item->get_result_value();
 				$i_o = $this->calc_offset($group_offsets, $identifier);
 
-				if($this->is_multi_way_comparison)
+				if($this->i['is_multi_way_comparison'])
 					$i = $this->calc_offset($id_offsets, $buffer_item->get_result_identifier());
 				else
 					$i = $this->calc_offset($id_offsets, $buffer_item->get_result_identifier() . ' ' . $value);
 
 				$graph_size = max(0, round(($value / $this->i['graph_max_value']) * $work_area_width));
 				$value_end_right = max($this->i['left_start'] + $graph_size, 1);
-				$px_bound_top = $this->i['top_start'] + ($this->is_multi_way_comparison ? 5 : 0) + ($this->i['identifier_height'] * $i) + ($bar_height * $i_o) + ($separator_height * ($i_o + 1));
+				$px_bound_top = $this->i['top_start'] + ($this->i['is_multi_way_comparison'] ? 5 : 0) + ($this->i['identifier_height'] * $i) + ($bar_height * $i_o) + ($separator_height * ($i_o + 1));
 				$px_bound_bottom = $px_bound_top + $bar_height;
 				$middle_of_bar = round($px_bound_top + ($bar_height / 2) + ($this->i['identifier_size'] - 4));
-				$title_tooltip = $buffer_item->get_result_identifier() . ': ' . $value;
 
 				$std_error = -1;
-				if(($raw_values = $buffer_item->get_result_raw()))
+				if(($raw_values = $buffer_item->get_result_raw_array()))
 				{
-					$std_error = pts_strings::colon_explode($raw_values);
-
-					switch(count($std_error))
+					switch(count($raw_values))
 					{
 						case 0:
 							$std_error = -1;
@@ -141,12 +146,12 @@ class pts_graph_horizontal_bars extends pts_graph_core
 							$std_error = 0;
 							break;
 						default:
-							$std_error = pts_math::standard_error($std_error);
+							$std_error = pts_math::standard_error($raw_values);
 							break;
 					}
 				}
 
-				$this->svg_dom->add_element('rect', array('x' => $this->i['left_start'], 'y' => $px_bound_top, 'height' => $bar_height, 'width' => $graph_size, 'fill' => $this->adjust_color($buffer_item->get_result_identifier(), $paint_color), 'xlink:title' => $title_tooltip), $g_bars);
+				$this->svg_dom->add_element('rect', array('x' => $this->i['left_start'], 'y' => $px_bound_top, 'height' => $bar_height, 'width' => $graph_size, 'fill' => $this->adjust_color($buffer_item->get_result_identifier(), $paint_color)), $g_bars);
 
 				if($std_error != -1 && $std_error > 0 && $value != null)
 				{
@@ -165,13 +170,13 @@ class pts_graph_horizontal_bars extends pts_graph_core
 							$this->svg_dom->add_element('line', array('x1' => $std_error_base_left, 'y1' => $px_bound_top, 'x2' => $std_error_base_right, 'y2' => $px_bound_top), $g);
 						}
 					}
-					$bar_offset_34 = round($middle_of_bar + ($this->is_multi_way_comparison ? 0 : ($bar_height / 5) + 1));
-					$this->svg_dom->add_text_element('SE +/- ' . pts_math::set_precision($std_error, 2), array('y' => $bar_offset_34, 'x' => ($this->i['left_start'] - 5)), $g_se);
+					$bar_offset_34 = round($middle_of_bar + ($this->i['is_multi_way_comparison'] ? 0 : ($bar_height / 5) + 1));
+					$this->svg_dom->add_text_element('SE +/- ' . pts_math::set_precision($std_error, max(2, pts_math::get_precision($value))) . ', N = ' . count($raw_values), array('y' => $bar_offset_34, 'x' => ($this->i['left_start'] - 5)), $g_se);
 				}
 
 				if((self::text_string_width($value, $this->i['identifier_size']) + 2) < $graph_size)
 				{
-					if(isset($this->d['identifier_notes'][$buffer_item->get_result_identifier()]) && $this->i['compact_result_view'] == false && !$this->is_multi_way_comparison)
+					if(isset($this->d['identifier_notes'][$buffer_item->get_result_identifier()]) && $this->i['compact_result_view'] == false && !$this->i['is_multi_way_comparison'])
 					{
 						if($g_identifier_note == null)
 						{
@@ -202,7 +207,14 @@ class pts_graph_horizontal_bars extends pts_graph_core
 							{
 								$g_note = $this->svg_dom->make_g(array('font-size' => (self::$c['size']['key'] - 2), 'fill' => self::$c['color']['body_text'], 'text-anchor' => 'start', 'font-weight' => 'bold'));
 							}
-							$this->svg_dom->add_text_element($note, array('x' => ($this->i['left_start'] + 4), 'y' => ($px_bound_top + self::$c['size']['key'])), $g_note);
+							if(self::text_string_width($note, self::$c['size']['key']) > ($graph_size * 0.9))
+							{
+								// TODO decide if note should be relocated in front of bar or something?
+							}
+							else
+							{
+								$this->svg_dom->add_text_element($note, array('x' => ($this->i['left_start'] + 4), 'y' => $px_bound_top + self::$c['size']['key']), $g_note);
+							}
 						}
 					}
 

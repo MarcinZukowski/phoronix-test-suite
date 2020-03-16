@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2020, Phoronix Media
+	Copyright (C) 2008 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -31,6 +31,10 @@ class pts_network
 	{
 		return self::$network_proxy == false;
 	}
+	public static function get_network_proxy()
+	{
+		return self::$network_proxy;
+	}
 	public static function internet_support_available()
 	{
 		return self::network_support_available() && self::$disable_internet_support == false;
@@ -51,6 +55,18 @@ class pts_network
 
 		return $contents;
 	}
+	public static function can_reach_phoronix_test_suite_com()
+	{
+		return pts_network::http_get_contents('http://www.phoronix-test-suite.com/PTS') == 'PTS';
+	}
+	public static function can_reach_openbenchmarking_org()
+	{
+		return pts_network::http_get_contents('http://openbenchmarking.org/PTS') == 'PTS';
+	}
+	public static function can_reach_phoronix_net()
+	{
+		return pts_network::http_get_contents('http://phoronix.net/PTS') == 'PTS';
+	}
 	public static function http_upload_via_post($url, $to_post_data, $supports_proxy = true)
 	{
 		if(!pts_network::network_support_available())
@@ -58,8 +74,7 @@ class pts_network
 			return false;
 		}
 
-		$upload_data = http_build_query($to_post_data);
-		$http_parameters = array('http' => array('method' => 'POST', 'content' => $upload_data));
+		$http_parameters = array('http' => array('method' => 'POST', 'content' => http_build_query($to_post_data)));
 		if($supports_proxy)
 		{
 			$stream_context = pts_network::stream_context_create($http_parameters);
@@ -79,7 +94,6 @@ class pts_network
 		{
 			return false;
 		}
-
 		if(strpos($download, '://') === false)
 		{
 			$download = 'http://' . $download;
@@ -90,8 +104,11 @@ class pts_network
 			$download = str_replace('https://', 'http://', $download);
 		}
 
-		if(function_exists('curl_init') && stripos(PTS_PHP_VERSION, 'hiphop') === false)
+		if(PTS_IS_CLIENT && strpos(phodevi::read_property('system', 'operating-system'), ' 7') === false && function_exists('curl_init') && stripos(PTS_PHP_VERSION, 'hiphop') === false)
 		{
+			// XXX: RHEL/EL 7.6 PHP packages introduced a segv when using CURL... Until that's resolved, just blacklist " 7"
+			// as unknown when it will be fixed, but at least there is non-CURL codepath supported fine
+			// " 7" is a bit liberal but also hard due to various EL7 downstreams
 			// XXX: Facebook HipHop HHVM currently seems to have problems with PHP CURL
 			$return_state = pts_network::curl_download($download, $to);
 		}
@@ -131,7 +148,7 @@ class pts_network
 
 		if($download_port_number)
 		{
-			curl_setopt($ch, CURLOPT_PORT, $port);
+			curl_setopt($cr, CURLOPT_PORT, $port);
 		}
 
 		if(stripos($download, 'sourceforge') === false)
@@ -163,7 +180,7 @@ class pts_network
 			curl_setopt($cr, CURLOPT_PROXY, self::$network_proxy['proxy']);
 			if(!empty(self::$network_proxy['user']))
 			{
-				curl_setopt($ch, CURLOPT_USERPWD, self::$network_proxy['user'] . ':' . self::$network_proxy['password']);
+				curl_setopt($cr, CURLOPT_USERPWD, self::$network_proxy['user'] . ':' . self::$network_proxy['password']);
 			}
 		}
 
@@ -209,6 +226,9 @@ class pts_network
 		{
 			$parameters = array();
 		}
+
+		$parameters['ssl']['verify_peer'] = false;
+		$parameters['ssl']['verify_peer_name'] = false;
 
 		if($proxy_address == false && $proxy_port == false && self::$network_proxy)
 		{
@@ -387,13 +407,47 @@ class pts_network
 			echo PHP_EOL . 'The file_uploads option in your PHP configuration must be enabled for network support.' . PHP_EOL . PHP_EOL;
 		}
 	}
+	public static function get_active_network_interface()
+	{
+		$dev = '';
+
+		// try and get the device with the default route
+		if ($ip = pts_client::executable_in_path('ip'))
+		{
+			$out = shell_exec("$ip route 2>&1");
+			$start = strpos($out, ' dev ');
+			if($start !== false)
+			{
+				$start += 5; // length of ' dev '
+				if(($xx = strpos($out, ' ', $start)) !== false)
+				{
+					$dev = substr($out, $start, $xx - $start);
+				}
+			}
+		}
+
+		// we grab the last field of the `netstat -nr` output, betting on *bsd not expiring it's default route
+		if(empty($dev) && $netstat = pts_client::executable_in_path('netstat')) {
+			$out = shell_exec("$netstat -rn 2>&1");
+			$lines = explode("\n", $out);
+			foreach ($lines as $line) {
+				$start = substr($line,0,7);
+				if ($start == '0.0.0.0' || $start === 'default') {
+					$dev = trim(substr(trim($line),strrpos($line,' ')));
+					return $dev;
+				}
+			}
+		}
+		return $dev;
+	}
 	public static function get_local_ip()
 	{
 		$local_ip = false;
+		$interface = self::get_active_network_interface();
 
 		if(($ifconfig = pts_client::executable_in_path('ifconfig')))
 		{
-			$ifconfig = shell_exec($ifconfig . ' 2>&1');
+			$ifconfig = shell_exec($ifconfig . " $interface 2>&1");
 			$offset = 0;
 			while(($ipv4_pos = strpos($ifconfig, 'inet addr:', $offset)) !== false)
 			{
@@ -423,6 +477,48 @@ class pts_network
 				}
 			}
 		}
+		else if(phodevi::is_windows())
+		{
+			$ipconfig = shell_exec('ipconfig');
+			$offset = 0;
+
+			while(($ipv4_pos = strpos($ipconfig, 'IPv4 Address.', $offset)) !== false)
+			{
+				$ipv4 = substr($ipconfig, $ipv4_pos);
+				$ipv4 = substr($ipv4, strpos($ipv4, ': ') + 2);
+				$ipv4 = substr($ipv4, 0, strpos($ipv4, "\n"));
+				$local_ip = trim($ipv4);
+
+				if($local_ip != '127.0.0.1' && $local_ip != null && strpos($local_ip, '169.254') === false)
+				{
+					break;
+				}
+				$offset = $ipv4_pos + 3;
+			}
+		}
+		else if(pts_client::executable_in_path('hostname'))
+		{
+			$hostname_i = explode(' ', trim(shell_exec('hostname -I 2>&1')));
+			$hostname_i = array_shift($hostname_i);
+			if(count(explode('.', $hostname_i)) == 4)
+			{
+				$local_ip = $hostname_i;
+			}
+		}
+
+		if(empty($local_ip) && function_exists('net_get_interfaces'))
+		{
+			// The below code should work as of net_get_interfaces() as of PHP 7.3 in cross-platform manner
+			$net_interfaces = net_get_interfaces();
+			foreach($net_interfaces as $interface => $interface_info)
+			{
+				if(isset($interface_info['unicast'][1]['address']) && !empty($interface_info['unicast'][1]['address']) && $interface_info['unicast'][1]['address'] != '127.0.0.1')
+				{
+					$local_ip = $interface_info['unicast'][1]['address'];
+					break;
+				}
+			}
+		}
 
 		return $local_ip;
 	}
@@ -430,17 +526,41 @@ class pts_network
 	{
 		$mac = false;
 
-		foreach(pts_file_io::glob('/sys/class/net/*/operstate') as $net_device_state)
+		if(phodevi::is_linux())
 		{
-			if(pts_file_io::file_get_contents($net_device_state) == 'up')
+			if($interface = self::get_active_network_interface())
 			{
-				$addr = dirname($net_device_state) . '/address';
-
+				$addr =  "/sys/class/net/$interface/address";
 				if(is_file($addr))
 				{
 					$mac = pts_file_io::file_get_contents($addr);
-					break;
 				}
+			}
+
+			if(empty($mac))
+			{
+				foreach(pts_file_io::glob('/sys/class/net/*/operstate') as $net_device_state)
+				{
+					if(pts_file_io::file_get_contents($net_device_state) == 'up')
+					{
+						$addr = dirname($net_device_state) . '/address';
+						if(is_file($addr))
+						{
+							$mac = pts_file_io::file_get_contents($addr);
+							break;
+						}
+					}
+				}
+			}
+		}
+		else if(phodevi::is_windows())
+		{
+			$getmac = shell_exec('getmac');
+			$getmac = trim(substr($getmac, strpos($getmac, "\n", strpos($getmac, '======='))));
+			$getmac = substr($getmac, 0, strpos($getmac, ' '));
+			if(strlen($getmac) <= 17)
+			{
+				$mac = str_replace('-', ':', $getmac);
 			}
 		}
 
@@ -453,6 +573,11 @@ class pts_network
 				$hw_addr = substr($ifconfig, $hwaddr_pos);
 				$hw_addr = substr($hw_addr, (strpos($hw_addr, ' ') + 1));
 				$hw_addr = substr($hw_addr, 0, strpos($hw_addr, ' '));
+				if(($x = strpos($hw_addr, PHP_EOL)) != false)
+				{
+					$hw_addr = substr($hw_addr, 0, $x);
+				}
+
 				$mac = $hw_addr;
 
 				if($mac != null)
@@ -460,6 +585,41 @@ class pts_network
 					break;
 				}
 				$offset = $hwaddr_pos + 1;
+			}
+		}
+		if(empty($mac) && ($netstat = pts_client::executable_in_path('netstat')))
+		{
+			// Needed on at least OpenBSD as their `ifconfig` does not expose the MAC address
+			$netstat = shell_exec($netstat . ' -in 2>&1');
+			foreach(explode(PHP_EOL, $netstat) as $line)
+			{
+				$line = explode(' ', $line);
+				foreach($line as $i => $r)
+				{
+					if($r == null)
+						unset($line[$i]);
+				}
+				$line = array_values($line);
+
+				if(!isset($line[3]))
+				{
+					continue;
+				}
+
+				$address = explode(':', $line[3]);
+
+				if(count($address) == 6 && $address[0] != '00' && $address[5] != '00')
+				{
+					foreach($address as $seg)
+					{
+						if(strlen($seg) != 2)
+						{
+							continue;
+						}
+					}
+
+					$mac = $line[3];
+				}
 			}
 		}
 
@@ -472,24 +632,52 @@ class pts_network
 		if($wol_support === null)
 		{
 			$wol_support = array();
-			if(is_dir('/sys/class/net') && pts_client::executable_in_path('ethtool'))
+			if(is_dir('/sys/class/net'))
 			{
-				foreach(pts_file_io::glob('/sys/class/net/*') as $net_device)
+				if(pts_client::executable_in_path('ethtool'))
 				{
-					if(is_readable($net_device . '/operstate') && trim(file_get_contents($net_device . '/operstate')) != 'up')
+					foreach(pts_file_io::glob('/sys/class/net/*') as $net_device)
 					{
-						continue;
-					}
+						if(!is_readable($net_device . '/operstate') || trim(file_get_contents($net_device . '/operstate')) != 'up')
+						{
+							continue;
+						}
 
-					$net_name = basename($net_device);
-					$ethtool_output = shell_exec('ethtool ' . $net_name . ' 2>&1');
-					if(($x = stripos($ethtool_output, 'Supports Wake-on: ')) !== false)
+						$net_name = basename($net_device);
+						$ethtool_output = shell_exec('ethtool ' . $net_name . ' 2>&1');
+						if(($x = stripos($ethtool_output, 'Supports Wake-on: ')) !== false)
+						{
+							$ethtool_output = substr($ethtool_output, $x + strlen('Supports Wake-on: '));
+							$ethtool_output = trim(substr($ethtool_output, 0, strpos($ethtool_output, PHP_EOL)));
+							$wol_support[$net_name] = $net_name . ': ' . $ethtool_output;
+						}
+
+					}
+				}
+				if(empty($wol_support) && pts_client::executable_in_path('nmcli'))
+				{
+					foreach(pts_file_io::glob('/sys/class/net/*') as $net_device)
 					{
-						$ethtool_output = substr($ethtool_output, $x + strlen('Supports Wake-on: '));
-						$ethtool_output = trim(substr($ethtool_output, 0, strpos($ethtool_output, PHP_EOL)));
-						$wol_support[$net_name] = $net_name . ': ' . $ethtool_output;
-					}
+						if(!is_readable($net_device . '/operstate') || trim(file_get_contents($net_device . '/operstate')) != 'up')
+						{
+							continue;
+						}
 
+						$net_name = basename($net_device);
+						$ethtool_output = shell_exec('nmcli c show ' . $net_name . ' 2>&1');
+						if(($x = stripos($ethtool_output, '.wake-on-lan:')) !== false)
+						{
+							$ethtool_output = substr($ethtool_output, $x + strlen('.wake-on-lan:'));
+							$ethtool_output = trim(substr($ethtool_output, 0, strpos($ethtool_output, PHP_EOL)));
+
+							if(strpos($ethtool_output, '1') || strpos($ethtool_output, 'default'))
+							{
+								shell_exec('nmcli connection modify ' . $net_name . ' 802-3-ethernet.wake-on-lan magic 2>&1'); // TODO this really needed?
+								$wol_support[$net_name] = $net_name . ': g';
+							}
+						}
+
+					}
 				}
 			}
 		}
@@ -532,12 +720,12 @@ class pts_network
 	}
 	public static function find_zeroconf_phoromatic_servers($find_multiple = false)
 	{
+		$hosts = $find_multiple ? array() : null;
+
 		if(!pts_network::network_support_available())
 		{
-			return null;
+			return $hosts;
 		}
-
-		$hosts = $find_multiple ? array() : null;
 
 		if(PTS_IS_CLIENT && pts_client::executable_in_path('avahi-browse'))
 		{

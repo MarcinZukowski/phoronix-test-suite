@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2015 - 2016, Phoronix Media
-	Copyright (C) 2015 - 2016, Michael Larabel
+	Copyright (C) 2015 - 2019, Phoronix Media
+	Copyright (C) 2015 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -57,6 +57,10 @@ class pts_short_display_mode extends pts_concise_display_mode
 		$this->trial_run_count_current = 0;
 		$this->expected_trial_run_count = $test_result->test_profile->get_times_to_run();
 	}
+	public function test_run_success_inline($test_result)
+	{
+		// empty
+	}
 	public function test_run_instance_error($error_string)
 	{
 		return;
@@ -66,6 +70,10 @@ class pts_short_display_mode extends pts_concise_display_mode
 		return;
 	}
 	public function test_run_message($message_string)
+	{
+		return;
+	}
+	public function test_install_message($msg_string)
 	{
 		return;
 	}
@@ -99,7 +107,7 @@ class pts_short_display_mode extends pts_concise_display_mode
 
 			if(count($values) > 1)
 			{
-				$avg = pts_math::set_precision(array_sum($values) / count($values), 2);
+				$avg = pts_math::set_precision(pts_math::arithmetic_mean($values), 2);
 				$min = pts_math::set_precision(min($values), 2);
 				$max = pts_math::set_precision(max($values), 2);
 				$end_print .= 'AVG: ' . $avg . ' (' . $test_result->test_profile->get_result_scale() . ') / ';

@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2015, Phoronix Media
-	Copyright (C) 2009 - 2015, Michael Larabel
+	Copyright (C) 2009 - 2017, Phoronix Media
+	Copyright (C) 2009 - 2017, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -38,9 +38,14 @@ class memory_usage extends phodevi_sensor
 		{
 			return self::mem_usage_linux();
 		}
-		elseif(phodevi::is_macosx() || phodevi::is_bsd())
+		else if(phodevi::is_macosx())
 		{
 			return self::mem_usage_bsd('MEMORY', 'USED');
+		}
+		else if(phodevi::is_windows())
+		{
+			$ps = trim(shell_exec('powershell "((Get-WmiObject Win32_OperatingSystem).TotalVisibleMemorySize - (Get-WmiObject Win32_OperatingSystem).FreePhysicalMemory)"'));
+			return round($ps / 1024);
 		}
 	}
 	private function mem_usage_linux()
@@ -67,7 +72,7 @@ class memory_usage extends phodevi_sensor
 	{
 		$vmstats = explode("\n", shell_exec('vm_stat 2>&1'));
 		// buffers_and_cache
-		foreach ($vmstats as $vmstat_line)
+		foreach($vmstats as $vmstat_line)
 		{
 			$line_parts = pts_strings::colon_explode($vmstat_line);
 

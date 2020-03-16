@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2019, Phoronix Media
+	Copyright (C) 2008 - 2019, Michael Larabel
 	phodevi_memory.php: The PTS Device Interface object for system memory
 
 	This program is free software; you can redistribute it and/or modify
@@ -23,25 +23,17 @@
 
 class phodevi_memory extends phodevi_device_interface
 {
-	public static function read_property($identifier)
+	public static function properties()
 	{
-		switch($identifier)
-		{
-			case 'identifier':
-				$property = new phodevi_device_property('memory_string', phodevi::smart_caching);
-				break;
-			case 'capacity':
-				$property = new phodevi_device_property('memory_capacity', phodevi::smart_caching);
-				break;
-		}
-
-		return $property;
+		return array(
+			'identifier' => new phodevi_device_property('memory_string', phodevi::smart_caching),
+			'capacity' => new phodevi_device_property('memory_capacity', phodevi::smart_caching)
+			);
 	}
 	public static function memory_string()
 	{
 		$mem_string = null;
 		$mem_prefix = null;
-
 		$mem_size = false;
 		$mem_speed = false;
 		$mem_type = false;
@@ -69,20 +61,17 @@ class phodevi_memory extends phodevi_device_interface
 		}
 		else if(phodevi::is_windows())
 		{
-			$mem_size = phodevi_windows_parser::read_cpuz('DIMM #', 'Size', true);
-
-			foreach($mem_size as $key => &$individual_size)
+			$mem_size = phodevi_windows_parser::get_wmi_object_multi('CIM_PhysicalMemory', 'Capacity');
+			$clock_speed = phodevi_windows_parser::get_wmi_object_multi('CIM_PhysicalMemory', 'ConfiguredClockSpeed');
+			$mem_manufacturer = phodevi_windows_parser::get_wmi_object_multi('CIM_PhysicalMemory', 'Manufacturer');
+			$mem_part = phodevi_windows_parser::get_wmi_object_multi('CIM_PhysicalMemory', 'PartNumber');
+			if(isset($clock_speed[0]) && is_numeric($clock_speed[0]))
 			{
-				$individual_size = pts_arrays::first_element(explode(' ', $individual_size));
-
-				if(!is_numeric($individual_size))
-				{
-					unset($mem_size[$key]);
-				}				
+				$clock_speed = array_shift($clock_speed);
 			}
 
-			$mem_type = phodevi_windows_parser::read_cpuz('Memory Type', null);
-			$mem_speed = intval(phodevi_windows_parser::read_cpuz('Memory Frequency', null)) . 'MHz';
+			$mem_type = null;
+			$mem_speed = is_numeric($clock_speed) ? $clock_speed . 'MHz' : null;
 		}
 		else if(phodevi::is_linux())
 		{
@@ -102,6 +91,14 @@ class phodevi_memory extends phodevi_device_interface
 		if(is_array($mem_type))
 		{
 			$mem_type = array_pop($mem_type);
+		}
+		if(is_array($mem_part))
+		{
+			$mem_part = array_pop($mem_part);
+		}
+		if(is_array($mem_manufacturer))
+		{
+			$mem_manufacturer = array_pop($mem_manufacturer);
 		}
 
 		if($mem_size != false && (!is_array($mem_size) || count($mem_size) != 0))
@@ -129,6 +126,11 @@ class phodevi_memory extends phodevi_device_interface
 							//unset($mem_type[$i]);
 						}
 						break;
+					default:
+						if(phodevi::is_windows() && $mem_size[$i] > 1000000)
+						{
+							$mem_size[$i] = round($mem_size[$i] / 1048576);
+						}
 				}
 			}
 
@@ -150,7 +152,7 @@ class phodevi_memory extends phodevi_device_interface
 					$mem_type = substr($mem_type, 0, $cut);
 				}
 
-				if(!in_array($mem_type, array('Other')) && (pts_strings::keep_in_string($mem_type, pts_strings::CHAR_NUMERIC | pts_strings::CHAR_LETTER) == $mem_type || phodevi::is_windows()))
+				if(!in_array($mem_type, array('Other')) && (pts_strings::keep_in_string($mem_type, pts_strings::CHAR_NUMERIC | pts_strings::CHAR_LETTER) == $mem_type))
 				{
 					$mem_prefix = $mem_type;
 				}
@@ -182,17 +184,21 @@ class phodevi_memory extends phodevi_device_interface
 			}
 			else
 			{
-				if(($mem_count * $mem_size[0]) != phodevi::read_property('memory', 'capacity') && phodevi::read_property('memory', 'capacity') % $mem_size[0] == 0)
+				$t = str_replace(array(' MB', ' GB'), null, $mem_size[0]);
+				if(($mem_count * $t) != phodevi::read_property('memory', 'capacity') && phodevi::read_property('memory', 'capacity') % $t == 0)
 				{
 					// This makes sure the correct number of RAM modules is reported...
 					// On at least Linux with dmidecode on an AMD Opteron multi-socket setup it's only showing the data for one socket
 
-					if($mem_size[0] < 1024)
+					if(is_numeric($mem_size[0]))
 					{
-						$mem_size[0] *= 1024;
-					}
+						if($mem_size[0] < 1024)
+						{
+							$mem_size[0] *= 1024;
+						}
 
-					$mem_count = phodevi::read_property('memory', 'capacity') / $mem_size[0];
+						$mem_count = phodevi::read_property('memory', 'capacity') / $mem_size[0];
+					}
 				}
 
 				$product_string = null;
@@ -207,7 +213,7 @@ class phodevi_memory extends phodevi_device_interface
 					// Cleanup/shorten strings like KHX2133C13S4/4G
 					$mem_part = substr($mem_part, 0, $x);
 				}
-				if(isset($mem_part[2]) && stripos($mem_part, 'part') === false && stripos($mem_part, 'module') === false && stripos($mem_part, 'dimm') === false && substr($mem_part, 0, 2) != '0x' && !isset($mem_part[24]) && pts_strings::is_alnum($mem_part))
+				if(isset($mem_part[2]) && stripos($mem_part, 'part') === false && stripos($mem_part, 'module') === false && stripos($mem_part, 'dimm') === false && substr($mem_part, 0, 2) != '0x' && !isset($mem_part[24]) && pts_strings::is_alnum(str_replace(array('-'), null, $mem_part)))
 				{
 					$product_string .= ' ' . $mem_part;
 				}
@@ -230,15 +236,28 @@ class phodevi_memory extends phodevi_device_interface
 
 		if(empty($mem_string))
 		{
-			$mem_string = phodevi::read_property('memory', 'capacity');
+			$ram_in_mb = phodevi::read_property('memory', 'capacity');
 
-			if($mem_string != null)
+			if($ram_in_mb != null)
 			{
-				$mem_string .= 'MB';
+				$mem_string = $ram_in_mb . 'MB';
+
+				if($ram_in_mb > 5000)
+				{
+					$ram_in_gb = ceil($ram_in_mb / 1024);
+					if($ram_in_gb % 2 == 1)
+					{
+						$ram_in_gb++;
+					}
+					if($ram_in_gb >= 6)
+					{
+						$mem_string = $ram_in_gb . 'GB';
+					}
+				}
 			}
 		}
 
-		return trim($mem_string);
+		return trim(str_replace(array('Unknown ', 'Undefined'), '', $mem_string));
 	}
 	public static function memory_capacity()
 	{
@@ -291,16 +310,14 @@ class phodevi_memory extends phodevi_device_interface
 		}
 		else if(phodevi::is_windows())
 		{
-			$info = phodevi_windows_parser::read_cpuz('Memory Size', null);
-
-			if($info != null)
+			$info = phodevi_windows_parser::get_wmi_object('win32_operatingsystem', 'TotalVisibleMemorySize');
+			if(is_numeric($info))
 			{
-				if(($e = strpos($info, ' MBytes')) !== false)
-				{
-					$info = substr($info, 0, $e);
-				}
-
-				$info = trim($info);
+				$info = ceil($info / 1000);
+			}
+			else
+			{
+				$info = null;
 			}
 		}
 		else

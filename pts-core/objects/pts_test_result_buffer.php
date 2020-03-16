@@ -39,6 +39,10 @@ class pts_test_result_buffer
 	}
 	public function __clone()
 	{
+		foreach($this->buffer_items as $i => $v)
+		{
+			$this->buffer_items[$i] = clone $this->buffer_items[$i];
+		}
 	}
 	public function get_buffer_items()
 	{
@@ -113,7 +117,14 @@ class pts_test_result_buffer
 	}
 	public function rename($from, $to)
 	{
-		if($from == null && count($this->buffer_items) == 1)
+		if($from == 'PREFIX')
+		{
+			foreach($this->buffer_items as &$buffer_item)
+			{
+				$buffer_item->reset_result_identifier($to . ': ' . $buffer_item->get_result_identifier());
+			}
+		}
+		else if($from == null && count($this->buffer_items) == 1)
 		{
 			foreach($this->buffer_items as &$buffer_item)
 			{
@@ -279,6 +290,21 @@ class pts_test_result_buffer
 
 		return $identifiers;
 	}
+	public function get_total_value_sum()
+	{
+		$sum = 0;
+
+		foreach($this->buffer_items as &$buffer_item)
+		{
+			$v = $buffer_item->get_result_value();
+			if(is_numeric($v))
+			{
+				$sum += $v;
+			}
+		}
+
+		return $sum;
+	}
 	public function get_longest_identifier()
 	{
 		$identifier = null;
@@ -295,37 +321,109 @@ class pts_test_result_buffer
 
 		return $identifier;
 	}
+	public function result_identifier_differences_only_numeric()
+	{
+		if(!isset($this->buffer_items[0]))
+		{
+			return false;
+		}
+
+		$first_result = trim(str_ireplace(array('SVN', 'Git', 'Dev'), '', pts_strings::remove_from_string($this->buffer_items[0]->get_result_identifier(), pts_strings::CHAR_NUMERIC | pts_strings::CHAR_DECIMAL | pts_strings::CHAR_DASH)));
+		for($i = 1;  $i < count($this->buffer_items); $i++)
+		{
+			$result = trim(str_ireplace(array('SVN', 'Git', 'Dev'), '', pts_strings::remove_from_string($this->buffer_items[$i]->get_result_identifier(), pts_strings::CHAR_NUMERIC | pts_strings::CHAR_DECIMAL | pts_strings::CHAR_DASH)));
+			if($result != $first_result)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
 	public function get_max_value($return_identifier = false)
 	{
+		$bi = null;
 		$value = 0;
 		$max_id = null;
+		$precision = 2;
 
 		foreach($this->buffer_items as &$buffer_item)
 		{
+			$precision = max($precision, pts_math::get_precision($buffer_item->get_result_value()));
 			if($buffer_item->get_result_value() > $value)
 			{
 				$value = $buffer_item->get_result_value();
 				$max_id = $buffer_item->get_result_identifier();
+				$bi = $buffer_item;
 			}
 		}
 
-		return $return_identifier ? $max_id : $value;
+		if($return_identifier === 2)
+		{
+			return $bi;
+		}
+		else if($return_identifier)
+		{
+			return $max_id;
+		}
+		else
+		{
+			return pts_math::set_precision($value, $precision);
+		}
 	}
 	public function get_min_value($return_identifier = false)
 	{
+		$bi = null;
 		$value = 0;
-		$max_id = null;
+		$min_id = null;
+		$precision = 2;
 
 		foreach($this->buffer_items as &$buffer_item)
 		{
+			$precision = max($precision, pts_math::get_precision($buffer_item->get_result_value()));
 			if($buffer_item->get_result_value() < $value || $value == 0)
 			{
 				$value = $buffer_item->get_result_value();
-				$max_id = $buffer_item->get_result_identifier();
+				$min_id = $buffer_item->get_result_identifier();
+				$bi = $buffer_item;
 			}
 		}
 
-		return $return_identifier ? $max_id : $value;
+		if($return_identifier === 2)
+		{
+			return $bi;
+		}
+		else if($return_identifier)
+		{
+			return $min_id;
+		}
+		else
+		{
+			return pts_math::set_precision($value, $precision);
+		}
+	}
+	public function has_run_with_multiple_samples()
+	{
+		foreach($this->buffer_items as &$buffer_item)
+		{
+			if($buffer_item->get_sample_count() > 1)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+	public function get_value_from_identifier($result_identifier)
+	{
+		foreach($this->buffer_items as &$buffer_item)
+		{
+			if($buffer_item->get_result_identifier() == $result_identifier)
+			{
+				return $buffer_item->get_result_value();
+			}
+		}
+
+		return false;
 	}
 	public function buffer_values_to_percent()
 	{
@@ -359,6 +457,46 @@ class pts_test_result_buffer
 			}
 		}
 	}
+	public function adjust_precision($precision = 'auto')
+	{
+		if($precision == 'auto')
+		{
+			// For very large results, little point in keeping the precision...
+			$min_value = $this->get_min_value();
+			$precision = -1;
+			if($min_value >= 100)
+			{
+				$precision = 0;
+			}
+			if($min_value >= 10)
+			{
+				$precision = 2;
+			}
+
+			$current_precision = 0;
+			foreach($this->buffer_items as &$buffer_item)
+			{
+				if(is_numeric(($val = $buffer_item->get_result_value())))
+				{
+					$current_precision = max($current_precision, pts_math::get_precision($val));
+				}
+			}
+
+			$precision = $precision == -1 ? $current_precision : min($precision, $current_precision);
+		}
+
+		if(is_numeric($precision))
+		{
+			foreach($this->buffer_items as &$buffer_item)
+			{
+				if(is_numeric(($val = $buffer_item->get_result_value())))
+				{
+					$buffer_item->reset_result_value(pts_math::set_precision($val, $precision), false);
+				}
+			}
+
+		}
+	}
 	public function get_values()
 	{
 		$values = array();
@@ -369,6 +507,10 @@ class pts_test_result_buffer
 		}
 
 		return $values;
+	}
+	public function get_median()
+	{
+		return pts_math::median($this->get_values());
 	}
 	public function get_values_as_string()
 	{

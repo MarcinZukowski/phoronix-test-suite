@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2010 - 2017, Phoronix Media
-	Copyright (C) 2010 - 2017, Michael Larabel
+	Copyright (C) 2010 - 2020, Phoronix Media
+	Copyright (C) 2010 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -25,21 +25,39 @@ class pts_external_dependencies
 	public static function packages_that_provide($file)
 	{
 		$pkg_vendor = self::vendor_identifier('package-list');
-		if($file != null && is_file(PTS_EXDEP_PATH . 'dependency-handlers/' . $pkg_vendor . '_dependency_handler.php'))
+		$provides = false;
+		if($file != null && is_file(pts_exdep_generic_parser::get_external_dependency_path() . 'dependency-handlers/' . $pkg_vendor . '_dependency_handler.php'))
 		{
-			require_once(PTS_EXDEP_PATH . 'dependency-handlers/' . $pkg_vendor . '_dependency_handler.php');
+			require_once(pts_exdep_generic_parser::get_external_dependency_path() . 'dependency-handlers/' . $pkg_vendor . '_dependency_handler.php');
 			eval("\$provides = {$pkg_vendor}_dependency_handler::what_provides(\$file);");
-			return $provides;
+		}
+
+		if(empty($provides))
+		{
+			// Fallback to see if it's defined by the XML data
+			$f = array($file => '');
+			$t = false;
+			$x = true;
+			$provides = self::check_dependencies_missing_from_system($f, $t, $x);
+		}
+		return !empty($provides) && is_array($provides) ? $provides : false;
+	}
+	public static function startup_handler()
+	{
+		$pkg_vendor = self::vendor_identifier('package-list');
+		if(is_file(pts_exdep_generic_parser::get_external_dependency_path() . 'dependency-handlers/' . $pkg_vendor . '_dependency_handler.php'))
+		{
+			require_once(pts_exdep_generic_parser::get_external_dependency_path() . 'dependency-handlers/' . $pkg_vendor . '_dependency_handler.php');
+			eval("\$startup = {$pkg_vendor}_dependency_handler::startup_handler();");
+			return $startup;
 		}
 		return false;
 	}
-	public static function install_dependencies(&$test_profiles, $no_prompts = false, $skip_tests_with_missing_dependencies = false)
+	public static function install_dependencies(&$test_profiles, $no_prompts = false, $skip_tests_with_missing_dependencies = false, $report_progress = false)
 	{
 		// PTS External Dependencies install on distribution
-
-		if(phodevi::is_windows() || phodevi::is_macosx() || pts_client::read_env('NO_EXTERNAL_DEPENDENCIES') != false || pts_client::read_env('SKIP_EXTERNAL_DEPENDENCIES') == 1)
+		if(pts_client::read_env('NO_EXTERNAL_DEPENDENCIES') != false || pts_client::read_env('SKIP_EXTERNAL_DEPENDENCIES') == 1)
 		{
-			// Windows doesn't use any external dependencies
 			return true;
 		}
 
@@ -56,6 +74,10 @@ class pts_external_dependencies
 		// Find all of the POSSIBLE test dependencies
 		$required_external_dependencies = array();
 		$required_system_files = array();
+		if($report_progress)
+		{
+			pts_client::$display->test_install_progress_start('Evaluating External Test Dependencies');
+		}
 		foreach($tests_to_check as &$test_profile)
 		{
 			foreach($test_profile->get_external_dependencies() as $test_dependency)
@@ -120,7 +142,13 @@ class pts_external_dependencies
 		$required_external_dependencies_copy = $required_external_dependencies;
 
 		// Find the dependencies that are actually missing from the system
-		$dependencies_to_install = self::check_dependencies_missing_from_system($required_external_dependencies);
+		$skip_warning_on_unmet_deps = false;
+		$generic_packages_needed = array();
+		$dependencies_to_install = self::check_dependencies_missing_from_system($required_external_dependencies, $generic_packages_needed, $skip_warning_on_unmet_deps, true);
+		if($report_progress)
+		{
+			pts_client::$display->test_install_progress_completed();
+		}
 
 		// If it's automated and can't install without root, return true if there are no dependencies to do otherwise false
 		if($no_prompts && phodevi::is_root() == false)
@@ -140,12 +168,14 @@ class pts_external_dependencies
 			}
 		}
 
-		$system_dependencies = self::check_for_missing_system_files($required_system_files);
+		$system_dependencies = self::check_for_missing_system_files($required_system_files, $report_progress);
 
 		if(!empty($system_dependencies))
 		{
 			$dependencies_to_install = array_merge($dependencies_to_install, $system_dependencies);
 		}
+
+		$dependencies_to_install = array_unique($dependencies_to_install);
 
 		// Do the actual dependency install process
 		if(count($dependencies_to_install) > 0)
@@ -154,7 +184,7 @@ class pts_external_dependencies
 		}
 
 		// There were some dependencies not supported on this OS or are missing from the distro's XML file
-		if(count($required_external_dependencies) > 0 && count($dependencies_to_install) == 0)
+		if(count($required_external_dependencies) > 0 && count($dependencies_to_install) == 0 && $skip_warning_on_unmet_deps == false)
 		{
 			$exdep_generic_parser = new pts_exdep_generic_parser();
 			$to_report = array();
@@ -189,7 +219,7 @@ class pts_external_dependencies
 
 
 		// Find the dependencies that are still missing from the system
-		if(!$no_prompts && !defined('PHOROMATIC_PROCESS'))
+		if(!$no_prompts && !defined('PHOROMATIC_PROCESS') && $skip_warning_on_unmet_deps == false)
 		{
 			$generic_packages_needed = array();
 			$required_external_dependencies = $required_external_dependencies_copy;
@@ -286,13 +316,16 @@ class pts_external_dependencies
 		$dependency_names = self::installed_dependency_names();
 		return self::generic_names_to_titles($dependency_names);
 	}
-	private static function check_dependencies_missing_from_system(&$required_test_dependencies, &$generic_names_of_packages_needed = false)
+	private static function check_dependencies_missing_from_system(&$required_test_dependencies, &$generic_names_of_packages_needed = false, &$skip_warning_on_unmet_deps = false, $report_progress = false)
 	{
 		$generic_dependencies_parser = new pts_exdep_generic_parser();
 		$vendor_dependencies_parser = new pts_exdep_platform_parser(self::vendor_identifier('package-list'));
+		$skip_warning_on_unmet_deps = $vendor_dependencies_parser->skip_warning_on_unmet_dependencies();
 		$kernel_architecture = phodevi::read_property('system', 'kernel-architecture');
 		$needed_os_packages = array();
 
+		$required_test_dep_count = count($required_test_dependencies);
+		$i = 0;
 		foreach($required_test_dependencies as $package => $dependents)
 		{
 			if($vendor_dependencies_parser->is_package($package))
@@ -310,6 +343,10 @@ class pts_external_dependencies
 					$generic_package_data = $generic_dependencies_parser->get_package_data($package);
 					$add_dependency = empty($generic_package_data['file_check']) || self::file_missing_check($generic_package_data['file_check']);
 				}
+				else
+				{
+					$add_dependency = true;
+				}
 
 				if($add_dependency && $arch_compliant && $package_data['os_package'] != null)
 				{
@@ -326,6 +363,11 @@ class pts_external_dependencies
 				{
 					unset($required_test_dependencies[$package]);
 				}
+			}
+			$i++;
+			if($report_progress)
+			{
+				pts_client::$display->test_install_progress_update(($i / $required_test_dep_count));
 			}
 		}
 
@@ -345,11 +387,17 @@ class pts_external_dependencies
 
 		return $needed_os_packages;
 	}
-	private static function check_for_missing_system_files(&$required_system_files)
+	private static function check_for_missing_system_files(&$required_system_files, $report_progress = false)
 	{
 		$kernel_architecture = phodevi::read_property('system', 'kernel-architecture');
 		$needed_os_packages = array();
 
+		if($report_progress)
+		{
+			pts_client::$display->test_install_progress_start('Evaluating System Dependencies');
+			$system_file_check_count = count($required_system_files);
+		}
+		$i = 0;
 		foreach(array_keys($required_system_files) as $file)
 		{
 			$present = false;
@@ -365,16 +413,9 @@ class pts_external_dependencies
 			{
 				$present = true;
 			}
-			else
+			else if(pts_client::executable_in_path($file))
 			{
-				foreach(array('/usr/bin/', '/bin/', '/usr/sbin') as $possible_path)
-				{
-					if(is_file($possible_path . $file))
-					{
-						$present = true;
-						break;
-					}
-				}
+				$present = true;
 			}
 
 			if(!$present)
@@ -389,6 +430,15 @@ class pts_external_dependencies
 					}
 				}
 			}
+			$i++;
+			if($report_progress)
+			{
+				pts_client::$display->test_install_progress_update(($i / $system_file_check_count));
+			}
+		}
+		if($report_progress)
+		{
+			pts_client::$display->test_install_progress_completed();
 		}
 
 		return $needed_os_packages;
@@ -423,7 +473,7 @@ class pts_external_dependencies
 					if(substr($file[$i], -2) == '.h' || substr($file[$i], -4) == '.hpp')
 					{
 						// May just be a relative header file to look for...
-						$possible_paths = array('/usr/local/include/', '/usr/target/include/', '/usr/include/', '/usr/include/x86_64-linux-gnu/');
+						$possible_paths = array('/usr/local/include/', '/usr/target/include/', '/usr/include/', '/usr/include/x86_64-linux-gnu/', '/usr/include/powerpc64le-linux-gnu/');
 						foreach($possible_paths as $path)
 						{
 							if(is_file($path . $file[$i]) || is_link($path . $file[$i]))
@@ -435,7 +485,7 @@ class pts_external_dependencies
 					else if(strpos($file[$i], '.so') !== false || substr($file[$i], -2) == '.a')
 					{
 						// May just be a relative shared library to look for...
-						$possible_paths = array('/usr/local/lib/', '/usr/lib/', '/usr/lib64/', '/usr/lib/x86_64-linux-gnu/', '/usr/lib/i386-linux-gnu/', '/usr/lib/arm-linux-gnueabihf/');
+						$possible_paths = array('/usr/local/lib/', '/usr/lib/', '/usr/lib64/', '/usr/lib/x86_64-linux-gnu/', '/usr/lib/i386-linux-gnu/', '/usr/lib/arm-linux-gnueabihf/', '/usr/lib/powerpc64le-linux-gnu/');
 
 						if(getenv('LD_LIBRARY_PATH'))
 						{
@@ -456,38 +506,25 @@ class pts_external_dependencies
 					else if(strpos($file[$i], '/') === false)
 					{
 						// May just be a command to look for...
-						$possible_paths = array('/usr/local/bin/', '/usr/bin/');
-
-						if(getenv('PATH'))
+						if(pts_client::executable_in_path($file[$i]))
 						{
-							foreach(explode(':', getenv('PATH')) as $path)
-							{
-								$possible_paths[] = $path . '/';
-							}
-						}
-
-						foreach($possible_paths as $path)
-						{
-							if(is_file($path . $file[$i]) || is_link($path . $file[$i]))
-							{
-								$file_is_there = true;
-							}
+							$file_is_there = true;
 						}
 					}
 				}
 			}
 			$file_missing = $file_missing || !$file_is_there;
 		}
-
 		return $file_missing;
 	}
 	private static function install_packages_on_system($os_packages_to_install)
 	{
 		// Do the actual installing process of packages using the distribution's package management system
-		$vendor_install_file = PTS_EXDEP_PATH . 'scripts/install-' . self::vendor_identifier('installer') . '-packages.sh';
+		$vendor_install_file = pts_exdep_generic_parser::get_external_dependency_path() . 'scripts/install-' . self::vendor_identifier('installer') . '-packages.sh';
+		$pkg_vendor = self::vendor_identifier('package-list');
 
 		// Rebuild the array index since some OS package XML tags provide multiple package names in a single string
-		$os_packages_to_install = explode(' ', implode(' ', $os_packages_to_install));
+		$os_packages_to_install = array_unique(explode(' ', implode(' ', $os_packages_to_install)));
 
 		if(is_file($vendor_install_file))
 		{
@@ -498,12 +535,15 @@ class pts_external_dependencies
 
 			echo shell_exec('sh ' . $vendor_install_file . ' ' . implode(' ', $os_packages_to_install));
 		}
+		else if(is_file(pts_exdep_generic_parser::get_external_dependency_path() . 'dependency-handlers/' . $pkg_vendor . '_dependency_handler.php'))
+		{
+			require_once(pts_exdep_generic_parser::get_external_dependency_path() . 'dependency-handlers/' . $pkg_vendor . '_dependency_handler.php');
+			eval("\$installed = {$pkg_vendor}_dependency_handler::install_dependencies(\$os_packages_to_install);");
+			return $installed;
+		}
 		else
 		{
-			if(phodevi::is_macosx() == false)
-			{
-				echo 'Distribution install script not found!';
-			}
+			echo 'Distribution install script not found!';
 		}
 	}
 	private static function vendor_identifier($type)
@@ -513,16 +553,17 @@ class pts_external_dependencies
 		switch($type)
 		{
 			case 'package-list':
-				$file_check_success = is_file(PTS_EXDEP_PATH . 'xml/' . $os_vendor . '-packages.xml');
+				$file_check_success = is_file(pts_exdep_generic_parser::get_external_dependency_path() . 'xml/' . $os_vendor . '-packages.xml');
 				break;
 			case 'installer':
-				$file_check_success = is_file(PTS_EXDEP_PATH . 'scripts/install-' . $os_vendor . '-packages.sh');
+				$file_check_success = is_file(pts_exdep_generic_parser::get_external_dependency_path() . 'scripts/install-' . $os_vendor . '-packages.sh');
 				break;
 		}
 
 		if($file_check_success == false)
 		{
 			// Check the aliases to figure out the upstream distribution
+			$vend_id = $os_vendor;
 			$os_vendor = false;
 			$exdep_generic_parser = new pts_exdep_generic_parser();
 			foreach($exdep_generic_parser->get_vendors_list() as $this_vendor)
@@ -530,7 +571,7 @@ class pts_external_dependencies
 				$exdep_platform_parser = new pts_exdep_platform_parser($this_vendor);
 				$aliases = $exdep_platform_parser->get_aliases();
 
-				if(in_array($os_vendor, $aliases))
+				if(in_array($vend_id, $aliases))
 				{
 					$os_vendor = $this_vendor;
 					break;

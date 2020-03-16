@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2009 - 2017, Phoronix Media
-	Copyright (C) 2009 - 2017, Michael Larabel
+	Copyright (C) 2009 - 2018, Phoronix Media
+	Copyright (C) 2009 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -24,13 +24,47 @@ class gpu_power extends phodevi_sensor
 {
 	const SENSOR_TYPE = 'gpu';
 	const SENSOR_SENSES = 'power';
-	const SENSOR_UNIT = 'Milliwatts';
+	private static $unit = 'Milliwatts';
 
+	public static function get_unit()
+	{
+		return self::$unit;
+	}
 	public function read_sensor()
 	{
 		$gpu_power = -1;
 
-		if(is_readable('/sys/kernel/debug/dri/0/i915_emon_status'))
+		if(($nvidia_smi = pts_client::executable_in_path('nvidia-smi')))
+		{
+			$smi_output = shell_exec(escapeshellarg($nvidia_smi) . ' -q -d POWER');
+			$power = strpos($smi_output, 'Power Draw');
+			if($power !== false)
+			{
+				$power = substr($smi_output, strpos($smi_output, ':', $power) + 1);
+				$power = trim(substr($power, 0, strpos($power, 'W')));
+
+				if(is_numeric($power) && $power > 0)
+				{
+					self::$unit = 'Watts';
+					$gpu_power = $power;
+				}
+			}
+
+		}
+		else if($power1_average = phodevi_linux_parser::read_sysfs_node('/sys/class/drm/card0/device/hwmon/hwmon*/power1_average', 'POSITIVE_NUMERIC'))
+		{
+			// AMDGPU path
+			if(is_numeric($power1_average))
+			{
+				$power1_average = $power1_average / 1000000;
+				if($power1_average > 1 && $power1_average < 600)
+				{
+					self::$unit = 'Watts';
+					$gpu_power = $power1_average;
+				}
+			}
+		}
+		else if(is_readable('/sys/kernel/debug/dri/0/i915_emon_status'))
 		{
 			$i915_emon_status = file_get_contents('/sys/kernel/debug/dri/0/i915_emon_status');
 			$power = strpos($i915_emon_status, 'Total power: ');

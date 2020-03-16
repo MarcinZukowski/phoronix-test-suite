@@ -9,8 +9,8 @@
 		</Information>
 		<Package>
 			<GenericName>common-dependencies</GenericName>
-			<PackageName>unzip</PackageName>
-			<FileCheck>unzip</FileCheck>
+			<PackageName>unzip bash</PackageName>
+			<FileCheck>unzip bash</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>gtk-development</GenericName>
@@ -38,15 +38,15 @@
 		</Package>
 		<Package>
 			<GenericName>build-utilities</GenericName>
-			<PackageName>gcc make build-base automake autoconf</PackageName>
+			<PackageName>gcc make build-base automake autoconf linux-headers</PackageName>
 		</Package>
 		<Package>
 			<GenericName>cairo-development</GenericName>
 			<PackageName>cairo</PackageName>
 		</Package>
 		<Package>
-			<GenericName>xorg-development</GenericName>
-			<PackageName>xorg-server</PackageName>
+			<GenericName>openmpi-development</GenericName>
+			<PackageName>openmpi openmpi-dev</PackageName>
 		</Package>
 		<Package>
 			<GenericName>tiff</GenericName>
@@ -66,7 +66,15 @@
 		</Package>
 		<Package>
 			<GenericName>java</GenericName>
-			<PackageName>java-common</PackageName>
+			<PackageName>java-common openjdk11</PackageName>
+		</Package>
+		<Package>
+			<GenericName>maven</GenericName>
+			<PackageName>maven</PackageName>
+		</Package>
+		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>expat expat-dev</PackageName>
 		</Package>
 		<Package>
 			<GenericName>portaudio-development</GenericName>
@@ -79,6 +87,10 @@
 		<Package>
 			<GenericName>glew</GenericName>
 			<PackageName>glew</PackageName>
+		</Package>
+		<Package>
+			<GenericName>meson</GenericName>
+			<PackageName>meson</PackageName>
 		</Package>
 		<Package>
 			<GenericName>bc</GenericName>
@@ -94,7 +106,11 @@
 		</Package>
 		<Package>
 			<GenericName>zlib-development</GenericName>
-			<PackageName>zlib</PackageName>
+			<PackageName>zlib zlib-dev</PackageName>
+		</Package>
+		<Package>
+			<GenericName>rust</GenericName>
+			<PackageName>rust cargo</PackageName>
 		</Package>
 		<Package>
 			<GenericName>jpeg-development</GenericName>
@@ -166,11 +182,15 @@
 		</Package>
 		<Package>
 			<GenericName>python</GenericName>
-			<PackageName>python</PackageName>
+			<PackageName>python python3</PackageName>
 		</Package>
 		<Package>
 			<GenericName>yasm</GenericName>
 			<PackageName>yasm</PackageName>
+		</Package>
+		<Package>
+			<GenericName>nasm</GenericName>
+			<PackageName>nasm</PackageName>
 		</Package>
 		<Package>
 			<GenericName>gmp-library</GenericName>
@@ -179,6 +199,10 @@
 		<Package>
 			<GenericName>subversion</GenericName>
 			<PackageName>subversion</PackageName>
+		</Package>
+		<Package>
+			<GenericName>jpeg-development</GenericName>
+			<PackageName>libjpeg-turbo-dev</PackageName>
 		</Package>
 		<Package>
 			<GenericName>git</GenericName>
@@ -195,6 +219,18 @@
 		<Package>
 			<GenericName>httpd</GenericName>
 			<PackageName>apache2</PackageName>
+		</Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<PackageName>wine</PackageName>
+		</Package>
+		<Package>
+			<GenericName>clang</GenericName>
+			<PackageName>clang</PackageName>
+		</Package>
+		<Package>
+			<GenericName>gflags</GenericName>
+			<PackageName>gflags gflags-dev</PackageName>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

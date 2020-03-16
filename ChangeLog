@@ -2,11 +2,662 @@ PHORONIX TEST SUITE CHANGE-LOG
 
 Phoronix Test Suite (Git)
 
+pts-core: Add new analyze-run-times sub-command
+pts-core: Allow hiding results from within the result viewer
+pts-core: Allow generating performance-per-dollar metrics from within the result file
+pts-core: Allow showing system logs from the result viewer
+pts-core: Allow showing test description within the result viewer
+pts-core: Fixes for running the result viewer from a website sub directory in correctly loading assets
+
+Phoronix Test Suite 9.4.1
+4 March 2020
+
+Various minor bug fixes and OpenBenchmarking.org cache update
+
+Phoronix Test Suite 9.4.0-Vestby
+25 February 2020
+
+pts-core: Add option in the result viewer to allow compacting multi-option test results into single graphs
+pts-core: Add option in the result viewer to allow compacting multi-version test results into single graphs
+pts-core: Add Parent tag to result file schema for specifying relation to other result objects
+pts-core: Report test profile support errors when intended
+pts-core: Fix showing NVIDIA test options on non-Linux NVIDIA platforms
+pts-core: Don't show delete/annotation options for dynamically generated result objects where those options are not relevant
+pts-core: Allow showing performance-per-suite option within result viewer
+pts_Graph: When going to PDF with GD library, just use the OB rather than temporary file
+pts_Graph: Restore support for error bars on vertical bar graph rendering
+pts_Graph: Support for simpler view / rendering without header/footer
+
+Phoronix Test Suite 9.4.0 Milestone 3
+18 February 2020
+
+pts-core: Add PDF bookmarks to result graphs on PDF result file generation
+pts-core: Add automated executive summary of result files via executive-summary sub-command and PDF result export
+pts-core: Add remove-result-from-result-file sub-command (slightly different from remove-results-from-result-file)
+pts-core: Set SaveTestLogs = TRUE by default
+pts-core: Set SaveInstallationLogs = TRUE by default
+pts-core: Refactor test-logs (SaveTestLogs) handling
+pts-core: Refactor test installation logs handling
+pts-core: More verbose reporting of system/external dependency solving status
+pts-core: Get the modern result viewer working on Windows
+pts-core: Support for showing test logs from the result viewer
+pts-core: Support for showing install logs from the result viewer
+pts-core: PDF output improvements
+pts-core: Fix for some suites not showing up on list-suites sub-command
+pts-core: Report "Test Suites Containing This Test" in the info sub-command on tests
+pts-core: On PDF export allow showing geometric means of tests based on their test suite connections
+pts-core: Add intersect sub-command for showing tests common between multiple results/suites
+
+Phoronix Test Suite 9.4.0 Milestone 2
+5 February 2020
+
+pts-core: Add config options allowing to modify or delete result files from the result viewer
+pts-core: Allow deleting results from the result viewer
+pts-core: Allow editing result file information from result viewer
+pts-core: Allow deleting results (graphs) from result file in result viewer
+pts-core: Add ability to annotate (comment) on result graphs within the result viewer
+pts-core: Support converting graphs to PNG/PDF with Inkscape or svg-convert when PHP GD is not installed/enabled
+pts-core: Add Persistent Memory disk targets for disk test
+
+Phoronix Test Suite 9.4.0 Milestone 1
+13 January 2020
+
+pts-core: Allow test profile test options to expose more helper information strings
+pts-core: External dependency updates
+pts-core: When a test fails to install due to linker error, try to run that missing library through the external dependency handler to hint at the name
+pts-core: When a test fails to install due missing header file, try to run that missing library through the external dependency handler to hint at the name
+pts_Graph: Pass/fail graph formatting improvements
+phodevi: Convert large RAM capacity basic strings into GB rather than large MB
+phodevi: Add support for Linux 5.6+ drivetemp kernel module for ATA drive temperatures
+
+Phoronix Test Suite 9.2.1
+11 December 2019
+
+pts-core: Fix for Debian packaging generator
+pts-core: FIx for install script that could lead to Phoromatic Server instance not fully launching
+
+Phoronix Test Suite 9.2.0-Hurdal
+3 December 2019
+
+pts-core: Fix for sensor-driven result outputs (e.g. power)
+pts-core: Clean up precision handling on graphs
+pts-core: Add run-subset sub-command
+pts-core: Add Clear Linux external dependencies handling for when not relying upon the Clear bundles that include all known dependencies
+phodevi: More robust ACPI power_meter handling
+phodevi: Support reading the NVMe drive temperature via HWMON on Linux 5.5+
+phoromatic: Use the new shared result viewer settings handling in common with the dynamic result viewer
+
+Phoronix Test Suite 9.2.0 Milestone 2
+13 November 2019
+
+pts-core: Drop auto-compare sub-command since currently buggy / too server resource intensive
+pts-core: Add FORCE_MIN_DURATION_PER_TEST
+pts-core: Don't sort geometric mean results when the only difference between result identifiers is numeric in nature
+pts-core: Allow preserving the precision of the original workload under test if not overriden by test profile
+pts-core: Record and report CPU microcode version in benchmark result file
+system_monitor: Allow multiple PERFORMANCE_PER_SENSOR= to be delimited by comma
+
+Phoronix Test Suite 9.2.0 Milestone 1
+17 October 2019
+
+pts-core: New possible external dependencies for gflags, clang, uuid, tclsh
+pts-core: External dependencies updates for Windows
+pts-core: Crash fix for macOS in regression from PTS 9.0.1 launcher change
+
+Phoronix Test Suite 9.0.1-Asker
+1 October 2019
+
+pts-core: Fatal error fix for old PHP5 versions (RHEL 7) with pts_openbenchmarking_upload crash
+pts-core: Set AllowResultUploadsToOpenBenchmarking = FALSE in enterprise-setup
+ob_auto_compare: Show "since [date]" as part of the inline box plot
+ob_auto_compare: Various tweaks/styling improvements to the inline box-plot display
+phodevi: New cpu.peak-freq sensor for reporting just the highest CPU core frequency at that moment
+
+Phoronix Test Suite 9.0.0-Asker
+16 September 2019
+
+pts-core: Add stress-batch-run sub-command for behavior like stress-run but no prompts for test options
+pts-core: Allow plotting all individual run results as a line graph
+pts-core: Allow showing pie charts of wins/losses of tests
+pts-core: Add support for showing "new + updated tests" via the invalid command helper
+pts-core: Allow accessing the new result viewer via localhost too rather than just 127.0.0.1
+pts_Graph: Restore pie chart support from PTS 6.0 state when dropped
+
+Phoronix Test Suite 9.0.0 Milestone 3
+3 September 2019
+
+pts-core: Add AllowResultUploadsToOpenBenchmarking user config option
+pts-core: Split OpenBenchmarking.org upload code into pts_openbenchmarking_upload file and allow it to be removed if wanting to strip out upload support
+pts-core: Add "ob-cache" local cache of tests/suites to help offline use-cases
+pts-core: Add hdf5 to the external dependency list
+pts-core: Add libxml2 to the external dependency list
+
+Phoronix Test Suite 9.0.0 Milestone 2
+22 August 2019
+
+pts-core: New result viewer improvements
+pts-core: Various fixes and code cleanups
+phodevi: Add support for cpu.power sensor reading from Linux zenpower driver
+
+Phoronix Test Suite 9.0.0 Milestone 1
+25 July 2019
+
+pts-core: Add 'expat' as possible external dependency
+pts-core: Various PDF report improvements
+pts-core: User-config syntax change LoadModules -> AutoLoadModules
+pts-core: Also dynamically increase run count if any results outside 3-sigma limit
+pts-core: Add compare-results-two-way sub-command
+pts-core: Improve MultiMatch in test result parser
+pts-core: Add IGNORE_RUNS environment variable
+pts-core: Add result-file-confidence sub-command
+pts_Graph: Add side-by-side 2-way comparison graph
+pts_Graph: Fix for displaying line graphs with very small values
+phodevi: Support reading sys.power via IPMI PS1_Input_Power/PS2_Input_Power
+phodevi: More robust Arm CPU model detection improvements
+phodevi: Much faster CPU usage reading on large core count systems
+
+Phoronix Test Suite 8.8.1-Hvaler
+30 May 2019
+
+pts-core: Various minor tweaks/fixes
+phodevi: Fix Linux CPU thread detection in some scenarios where inner-cores may be offlined
+phodevi: More robust CPU vulnerability reporting
+phodevi: Add initial reporting for Windows vulnerabilities via mdstool-cli
+
+Phoronix Test Suite 8.8.0-Hvaler
+13 May 2019
+
+pts-core: Report on the POWER SMT setting in notes
+pts-core: Add new/updated suite reporting
+pts-core: In build-suite allow not binding test profile versions
+pts-core: For list-suites, only show suites that have been updated within the past four years
+pts_Graph: Report N on horizontal bar graphs
+phodevi: Intel Node Manager power_meter support for sys.power sensor
+
+Phoronix Test Suite 8.8.0 Milestone 3
+9 May 2019
+
+pts-core: Add experimental dynamic-result-viewer
+pts-core: Allow marking of test profile download files as optional
+pts-core: Add "everything" virtual suite
+pts-core: Set MESA_VK_WSI_PRESENT_MODE=immediate by default to work around possible 60 FPS RADV bug
+pts-core: Rename remove-from-result-file to remove-run-from-result-file
+pts-core: Add remove-results-from-result-file sub-command
+phodevi: Detect AVX-512 VNNI
+phodevi: Fix OpenJDK Java version detection
+phodevi: Expand memory temperature sensor to work for some ARM SBCs
+phodevi: Multi-monitor detection improvements
+phodevi: Add support for gpu.memory-usage sensor with new AMDGPU mem_busy_percent sysfs interface
+system_monitor: Add PERFORMANCE_PER_SENSOR= support for performance-per-(arbitrary sensor) rather than just supporting perf-per-Watt
+ob_auto_compare: Show other results in result file on box plot
+
+Phoronix Test Suite 8.8.0 Milestone 2
+27 March 2019
+
+pts-core: On new installs set 3.00% as deviation for increasing dynamic run count rather than 3.50%
+pts-core: Add FORCE_MIN_TIMES_TO_RUN_CUTOFF= environment variable to toggle cutoff for FORCE_MIN_TIMES_TO_RUN behavior
+pts-core: Add FORCE_TIMES_TO_RUN_MULTIPLE
+pts-core: Add strict-benchmark option for enabling various options to ensure stricter behavior about the number of times to run each benchmark
+pts-core: Add cpu-physical-threads / cpu-threads / auto-executable auto test run options
+phodevi: CPU-therm reporting via sysfs for CPU core temp
+phodevi: GPU-therm reporting via sysfs for GPU core temp
+
+Phoronix Test Suite 8.8.0 Milestone 1
+16 March 2019
+
+pts-core: Allow FORCE_TIMES_TO_RUN to override debug-run/debug-benchmark single run behavior
+pts-core: Various fallbacks/workarounds for those wanting to (unofficially) use PTS on Windows 8.1
+pts-core: Other small tweaks and optimizations
+pts-core: Fixes an odd scenario where on Windows after 2 runs, further runs of that test profile for current run could fail in select (random) instances
+pts-core: Write out system notes for each system when generating PDF result output
+pts-core: CSV output improvements
+pts-core: Add result-file-raw-to-csv for dumping the raw/individual benchmark result run data
+pts_Graph: Condensing improvements for large graphs
+pts_Graph: Various formatting improvements
+phodevi: Intel GPU reporting improvements
+phodevi: BIOS version reporting support extended to Windows
+phodevi: ipmitool DMCI power sensor reporting for at least some POWER servers
+
+Phoronix Test Suite 8.6.1-Spydeberg
+21 February 2019
+
+pts-core: Dynamically honoring the CLI terminal width (no longer cache the value on Linux/BSD/macOS)
+pts-core: BSD external dependency updates
+ob_auto_compare: Minor formatting updates
+
+Phoronix Test Suite 8.6.0-Spydeberg
+5 February 2019
+
+pts-core: Other small tweaks and fixes
+pts-core: Fix for "/installed" virtual suite not including the proprietary/commercial tests that are installed
+ob_auto_compare: Allow showing more results in the embedded percentile graphs
+
+Phoronix Test Suite 8.6.0 Milestone 3
+27 January 2019
+
+pts-core: Better handling on Windows when there are space(s) in the paths
+pts-core: Add __event_post_run_stats module hook
+pts-core: Inline display of result distributions from OpenBenchmarking.org on applicable results
+pts-core: Don't try to run tests from result file(s) or suite(s) that were not installed
+pts-core: More accurate time reporting when result files are passed to `phoronix-test-suite estimate-run-time`
+phodevi: Better reporting of NVMe drive strings on BSDs
+
+Phoronix Test Suite 8.6.0 Milestone 2
+19 January 2019
+
+pts-core: Update Mac OS X to macOS references
+pts-core: Add result-file-stats sub-command to show more test result statistics
+pts-core: Show geometric mean and harmonic mean data at end of benchmarking process when relevant as part of post-run stats
+pts-core: Improved formatting of file download text user interface for downloading of dependencies on Microsoft Windows
+pts-core: Fix Loop 'Test i of n' Reporting
+pts-core: A few warning fixes for PHP 7.3+
+pts-core: External dependency handling support for OpenMandriva Lx 4.0 (transitioned from urpmi to DNF)
+phodevi: Report Windows Subsystem for Linux (WSL) to the system layer string
+
+Phoronix Test Suite 8.6.0 Milestone 1
+7 January 2019
+
+pts-core: No longer clear test profile identifiers on secondary saved results
+pts-core: Add compare-results-to-baseline sub-command for comparing one result file (baseline) against a set of results for text look at relative perf
+pts-core: Minor fixes
+pts-core: Show wins and losses summary after testing on large result files
+pts-core: On two-way result files, after test completion show comparison of current result against previous result (baseline)
+pts-core: Add ShowPostRunStatistics user configuration XML option to toggle whether various test statistics are printed at the end of testing
+pts-core: Add recently-added-tests sub-command to show newly added test profiles / alternative to openbenchmarking-changes/recently-updated-tests
+pts-core: Allow outputting line graphs to terminal interface as basic box plot graphs
+phodevi: Improve Linux multiple network device reporting
+phodevi: LXQt desktop version reporting
+phodevi: Update for Microsoft Windows Server 2019
+system_monitor: Allow outputting system monitor graphs to terminal interface inline
+
+Phoronix Test Suite 8.4.1-Skiptvet
+9 December 2018
+
+pts-core: Workaround for RHEL 7.6 PHP having buggy CURL that is causing seg faults
+pts-core: Ensure "." doesn't get set in PATH when launching phoronix-test-suite
+pts-core: Allow PRESET_OPTIONS env var to be used when in batch mode
+pts-core: FreeBSD updates
+pts-core: Add PRESET_OPTIONS_VALUES environment variable that is similar to PRESET_OPTIONS but for explicit values
+phodevi: Improved Radeon AMDGPU frequency detection/reporting
+phodevi: Add support for reading GPU usage sensor with AMDGPU gpu_busy_percent sysfs interface
+phodevi: Updated gpu_voltage sensor for AMDGPU driver
+phodevi: Updated gpu_power sensor for AMDGPU driver
+phodevi: Updated gpu_fanspeed sensor for AMDGPU driver
+phodevi: Updated gpu_freq sensor for AMDGPU driver
+phodevi: Improved physical CPU core detection on DragonFlyBSD 5.4
+phodevi: Improved Spectre detection on DragonFlyBSD 5.4
+phodevi: Allow using NUM_CPU_CORES to override the number of exposed CPU threads/cores to tests (alternative to PTS_NPROC / NUMBER_OF_PROCESSORS)
+phodevi: Improved multi-disk reporting for non-Linux operating systems
+phodevi: Minor GPU string reporting improvement
+
+Phoronix Test Suite 8.4.0-Skiptvet
+26 November 2018
+
+phodevi: Various minor tweaks
+
+Phoronix Test Suite 8.4.0 Milestone 3
+20 November 2018
+
+pts-core: Various external dependency updates
+pts-core: Expose NUM_CPU_PHYSICAL_CORES to test profiles as alternative to NUM_CPU_CORES (logical count)
+pts-core: Fix possible situation of openbenchmarking-refresh not updating when IndexCacheTTL is set to 0
+pts-core: Allow branded colors to work in the terminal/CLI text graphs
+pts-core: Continued POWER9 support improvements
+pts-core: Add RemoveInstallDirectoryOnReinstall to toggle test re-installation behavior
+pts_Graph: Fix for sometimes tick marker text overlapping
+phodevi: Improved physical CPU core detection for architectures like POWER
+phodevi: Improved CPU cache size detection
+
+Phoronix Test Suite 8.4.0 Milestone 2
+5 November 2018
+
+pts-core: Allow passing PTS environment variables as arguments to PTS and then just have PTS set them in the environment
+pts-core: Add dry-run test option
+pts-core: Various result parser additions to help parsing of CSV frame-time data for more test profiles (games)
+phodevi: Vulkan driver reporting fix
+
+Phoronix Test Suite 8.4.0 Milestone 1
+8 October 2018
+
+phodevi: Report vRAM size on GPU model string in GB when over 1GB
+pts-core: At run-time also report if test is deprecated/broken
+pts-core: Add "node-npm" as an external dependency for Node.js + NPM
+phodevi: Drop information reporting support for the long ago Catalyst/fglrx driver stack that hasn't been supported/maintained in many years
+
+Phoronix Test Suite 8.2.0-Rakkestad
+11 September 2018
+
+pts-core: Add RequiresDisplay test profile property to indicate if the test profile explicitly requires a monitor / display server to work
+pts-core: Add RequiresNetwork test profile property to indicate if the test profile needs a working network connection
+pts-core: Add RequiresInternet test profile property to indicate if the test profile needs a working Internet connection
+pts-core: Don't install tests where the current run-time checks will fail
+phodevi: Improve CPU thread count detection when running under LXC
+phodevi: More robust DMI decode ignore value handling
+phodevi: Add extra fallback detection for LXC in system-layer
+
+Phoronix Test Suite 8.2.0 Milestone 4
+7 September 2018
+
+pts-core: Fix behavior of "Would you like to stop and install these tests now"
+pts-core: Add reinstall / re-install aliases to force-install
+ob_auto_compare: Default first to trying to do an automated local result comparison
+phodevi: Amlogic SoC detection based on meson_cpufreq driver
+phodevi: Rockchip SoC fallback detection
+phodevi: Embedded ARM Cortex / ARM part model detection
+phodevi: Expanded sensor coverage using Intel RAPL
+
+Phoronix Test Suite 8.2.0 Milestone 3
+22 August 2018
+
+pts-core: Minor updates to logic for determining how many times to dynamically increase run count on high variance results
+pts-core: Show deprecated tests too when running list-all-tests
+pts-core: Add DropNoisyResults option if wishing to not save results that have too high of deviation between runs
+pts-core: Add PTS_DOWNLOAD_CACHE_OVERRIDE environment variable option on make-download-cache
+pts-core: Add PTS_USER_PATH_OVERRIDE environment variable to override PTS_USER_PATH on initialization
+pts-core: Add PTS_DOWNLOAD_CACHING_PLATFORM_LIMIT environment variable for make-download-cache
+pts-core: Add list-cached-tests option
+
+Phoronix Test Suite 8.2.0 Milestone 2
+15 August 2018
+
+pts-core: Add DivideResultDivisor to result parser
+pts-core: Add libevent as possible external dependency
+pts-core: Alert the user when the test install directory is on a file-system mounted with 'noexec'
+pts-core: Optional support with PHP 7.3+ to also obtain network info using net_get_interfaces()
+pts-core: Fix possible alignment issue with value/spacer on outputting text-based result graphs
+pts-core: When Internet is not available and running list-tests, only show tests that are available via caches unless `list-all-tests` is run
+pts-core: Rework `list-recommended-tests` to make use of download count information exposed via OB index repository data rather than needing to make fresh web query
+pts-core: Show "popular tests" in the invalid command helper
+pts-core: Allow stress-run to be triggered from interactive mode
+pts-core: Allow comparing dynamic in-line result comparisons against local results when no Internet results matching or Internet not available
+phodevi: Reporting of L1TF / Level 1 Terminal Fault vulnerability
+pts_Graph: Tweaks to text sizing on vertical bar graphs
+
+Phoronix Test Suite 8.2.0 Milestone 1
+21 July 2018
+
+pts-core: Add readline-based autocompletion support for text-based menu selection lists
+pts-core: Add readline-based autocompletion support for the result file save name for trying to match existing result file identifiers
+pts-core: Add autocompletion support for result file identifier based on installed software/hardware
+pts-core: Various Alpine Linux external dependency updates
+pts-core: Various improvements to the Shell sub-command functionality, including auto-completion support
+phoromatic: From rootadmin allow the rootadmin to override/reset a user account password
+phodevi: Windows battery reporting discharge rate support
+phodevi: Improved multi CPU socket reporting on Windows
+phodevi: Various hardware/software detection improvements when running within Docker/containers
+pgo: New module to provide for automated compiler PGO (Profile Guided Optimizations) testing on GCC/Clang
+
+Phoronix Test Suite 8.0.1-Aremark
+26 June 2018
+
+pts-core: Add "wine" external dependency support
+pts-core: Fix skip-test behavior
+pts-core: Web browser handling improvements on Windows, other Windows updates
+phoromatic: Various minor fixes and enhancements
+phodevi: Add USE_WINE environment variable check, point it towards the wine binary you wish to test
+
+Phoronix Test Suite 8.0.0-Aremark
+5 June 2018
+
+pts-core: Various macOS support tweaks/improvements
+pts-core: Add external dependency support for Brew macOS package manager
+pts-core: Avoid duplicate test identifiers on graphs
+phodevi: Improved X.Org Server version detection
+
+Phoronix Test Suite 8.0.0 Milestone 5
+30 May 2018
+
+pts-core: Termux external dependency support
+pts-core: Other minor tweaks and changes
+phoromatic: Better handling when the Phoromatic Server is run without an Internet connection or Internet disabled
+phoromatic: A wide variety of other Phoromatic Server optimizations and improvements
+phodevi: Add spec_store_bypass / Spectre Variant 4 reporting
+
+Phoronix Test Suite 8.0.0 Milestone 4
+16 May 2018
+
+phoromatic: Add a "email all users" option to the rootadmin page
+phoromatic: Improve search functionality on results page, allow boolean expressions, date ranges, many other search features
+phoromatic: Various search improvements to `phoronix-test-suite search`
+phoromatic: Allow new test profiles to be created from Phoromatic web UI
+pts-core: New create-test-profile sub-command for guided process to test profile creation
+pts-core: Basic changes, should be all that's needed for EU GDPR safeguards
+phodevi: RISC-V SiFive CPU detection
+
+Phoronix Test Suite 8.0.0 Milestone 3
+16 April 2018
+
+pts-core: Improvements for BSD / FreeBSD support
+pts-core: Add "V8" external dependency for V8 JavaScript engine
+pts-core: Add initial AdvertiseServiceOpenBenchmarkRelay support
+pts-core: Add new inspect-test-profile sub-command
+pts-core: Add ColoredConsole option in user configuration file of AUTO / TRUE / FALSE to control colored text behavior
+pts-core: Report each test's run-time to test-rin-times in result file XML
+pts-core: More XSD / OpenBenchmarking.org schema handling work for future functionality
+phoromatic: Ensure environment variables set via Phoromatic web interface get passed to tests
+phodevi: BSD improvements
+backup: A module providing initial backup/restore functionality for PTS/Phoromatic
+
+Phoronix Test Suite 8.0.0 Milestone 2
+24 March 2018
+
+pts-core: Add DeleteOutputBefore and DeleteOutputAfter options to the result parser
+pts-core: Fix for run-random-tests sub-command
+pts-core: Native XML result parsing support via FileFormat = XML in the result parser for test profiles
+pts-core: Add openbenchmarking-uploads sub-command for reporting recent result uploads from the local IP
+phodevi: reboot/shutdown support on Windows
+
+Phoronix Test Suite 8.0.0 Milestone 1
+8 March 2018
+
+pts-core: Rewritten Windows support
+pts-core: Add ~/install-message support where if a test profile installer writes there, that message will in turn be shown to the user on test install
+pts-core: Support for using Cygwin's bash interpreter on Windows systems for better test profile parsing support
+pts-core: When running on Windows, add new "windows/" OpenBenchmarking.org test repository
+pts-core: Introduce basic phoronix-test-suite shell for easier PTS experience
+pts-core: Allow XInclude support for test suites
+perf_per_dollar: Allow calculating cloud costs / perf-per via COST_PERF_PER_HOUR= environment variable
+phodevi: Cavium ThunderX detection
+
+Phoronix Test Suite 7.8.0-Folldal
+14 February 2018
+
+pts-core: Various minor fixes
+pts_Graph: Fix vertical bar graphs on many bars to be rendered
+
+Phoronix Test Suite 7.8.0 Milestone 3
+5 February 2018
+
+pts-core: Fix crash in stress-run when PHP PCNTL is missing
+pts-core: When installing a test that is marked deprecated/experimental/broken, ensure to convey that to the user
+pts-core: When installing a test that is of license retail/restricted, ensure to convey that to the user
+pts-core: Don't show tests in `list-available-tests` / `list-tests` that are not verified
+pts-core: Improvements to `info` sub-command for test profiles in highlighting tests that may have problems and also show pre/post messages
+pts_Graph: Fix when manually forcing line graphs sometimes still yielding bar graphs
+phodevi: spectre_v1 and spectre_v2 protection reporting
+phodevi: LXQt desktop detection
+phodevi: Don't cache the compiler in case external dependencies install a new compiler, etc
+
+Phoronix Test Suite 7.8.0 Milestone 2
+14 January 2018
+
+pts-core: Allow local/other tests not part of OpenBenchmarking.org to be downloaded from a Phoromatic Server
+pts-core: Fixes for make-download-cache sometimes not caching tests/suites
+pts-core: Drop the pts_test_notes_manager since pts_test_run_manager already had better capabilities built-in
+pts-core: Add dump-phodevi-properties helper to assist in debugging and porting to new platforms
+pts-core: Interactive mode improvements
+pts-core: The `phoronix-test-suite gui` has been unmaintained and can be considered deprecated
+pts-core: Add `phoronix-test-suite search` for conducting basic searches from the CLI
+pts-core: When running `phoronix-test-suite info <test profile>`, show the OpenBenchmarking.org change-log for that test profile too
+pts-core: When running `phoronix-test-suite info <test profile>`, show local test results containing this test
+phodevi: Append BIOS version to end of motherboard string
+phodevi: Strip invalid chars from BIOS version parsing
+phodevi: Reworked property handling
+phodevi: KDE Plasma 5 detection improvements
+pts_Graph: Add allow_box_plots graph configuration tunable
+pts_Graph: Restore support for allowing vertical bar graphs, can be enabled by editing graph-config.json with bar_graphs_horizontal = false
+
+Phoronix Test Suite 7.8.0 Milestone 1
+8 January 2018
+
+pts-core: Add meson to external dependencies
+pts-core: Other external dependency updates
+pts-core: Various minor improvements when running on Docker/containerized
+pts-core: Phoroscript interpreter improvements for Windows
+pts-core: Allow PTS_WEBSOCKET_PORT environment variable to be used to override WebSocket port when launching Phoromatic Server
+phodevi: Add some missing handling around /dev/vd* disks
+phodevi: Add BIOS version reporting property
+
+Phoronix Test Suite 7.6.0-Alvdal
+7 December 2017
+
+pts-core: Just minor changes
+
+Phoronix Test Suite 7.6.0 Milestone 4
+3 December 2017
+
+pts-core: Gentoo external dependency handling updates
+pts-core: Better external dependency handling when running on EC2 instances
+phodevi: Add new gpu.memory-usage sensor initially supported on NVIDIA
+
+Phoronix Test Suite 7.6.0 Milestone 3
+21 November 2017
+
+pts-core: Provide some basic graph size/count reporting on refresh-graphs sub-command
+pts-core: make script shebang more portable
+pts-core: Various styling updates
+pts-core: More demanding debug-self-test
+pts-core: Update Fedora's Python packages
+pts_Graph: Turn line graphs to horizontal box plots if too much data to graph in space
+phodevi: physical CPU core detection count on macOS
+phodevi: GPU power consumption sensor support via nvidia-smi
+phodevi: NVMe drive temperature reporting on Linux
+phodevi: Better memory model detection on Linux
+
+Phoronix Test Suite 7.6.0 Milestone 2
+2 November 2017
+
+pts-core: Add LEDE external dependency handling support
+pts-core: Drop ports-based external dependency handling for FreeBSD and instead encourage pkg
+pts-core: Network MAC address detection on OpenBSD
+phoronix-test-suite: Check for php-cli as binary option
+phodevi: Motherboard detection support on BSD using smbios.planar.product
+phodevi: hw.cpu_topology_core_ids support for physical core count on BSD
+phodevi: Allow BSD GPU detection via pciconf data
+phodevi: BSD chipset detection
+phodevi: VT EFIFB resolution detection
+
+Phoronix Test Suite 7.6.0 Milestone 1
+10 October 2017
+
+pts-core: Add external dependency handling for MidnightBSD / mport
+pts-core: Improved handling of IP/MAC detection to try to figure out the default interface
+pts-core: Wake-On-LAN handling detection improvements
+phoromatic: Try using systemctl poweroff first when trying to turn off a system
+phodevi: Add memory.temp sensor
+phodevi: Fixed k10temp CPU temperature reporting
+phodevi: Add IPMI ambient temperature support
+phodevi: Some CPU/GPU temperature reporting improvements
+phodevi: Ignore reporting 'MS-DOS FAT32' EFI file-system on macOS
+phodevi: Add Bcache reporting support
+phodevi: Add APFS Apple File-System detection on macOS
+phodevi: Tweaks for macOS High Sierra
+phodevi: Restructure CPU core/thread reporting in system tables
+perf_per_dollar: Add "phoronix-test-suite perf_per_dollar.add <result file>" to allow perf-per-dollar graphs to be added after the fact
+
+Phoronix Test Suite 7.4.0-Tynset
+19 September 2017
+
+pts-core: Improve command documentation categories/organization
+pts-core: Fix install time reporting from the info sub-command when passing a test profile
+pts-core: Add network-info sub-command
+pts-core: Java external dependency updates
+pts-core: Add maven external dependency
+phodevi: NVMe disk reporting on BSDs
+pts_Graph: Allow line graphs to have adjustable floor/bottom to better present data on graph
+
+Phoronix Test Suite 7.4.0 Milestone 4
+11 September 2017
+
+pts-core: Report on updated OpenBenchmarking.org index update when new/updated tests are introduced
+pts-core: Add TEST_EXEC_PREPEND support
+pts-core: Ensure XAUTHORITY gets passed if relevant to test execution
+pts-core: Fixed dynamic dependency handling on Ubuntu 17.10 / apt-file with newer versions
+pts-core: Fix warning about passing variables by ref to PTS modules
+pts-core: Add nasm external dependency entries
+pts-core: Ensure duplicate dependencies to install don't become present
+phodevi: Add basic Budgie desktop reporting
+phodevi: IPMI fan speed reporting
+phodevi: EPYC detection
+toggle_screensaver: improved GNOME screensaver handling
+toggle_screensaver: work better under Wayland / non-X environments where display server might not be detected
+
+Phoronix Test Suite 7.4.0 Milestone 3
+28 August 2017
+
+pts-core: Reworked test exit status handling
+ob_auto_compare: New module for seamless OpenBenchmarking.org result references
+graphics_event_checker: Drop graphics_event_checker module as really provides no real benefit these days
+phodevi: Improve CPU physical core count detection for multi-socket systems
+
+Phoronix Test Suite 7.4.0 Milestone 2
+15 August 2017
+
+pts-core: Resolve possibility of first graph missing when exporting results as PDF
+phodevi: WSLFS (Windows Subsystem for Linux) file-system detection
+phodevi: Add monitor detection based on parsing EDID supplied by `xrandr --prop` (works well for newer NVIDIA setups)
+phodevi: Initial "system type" support
+
+Phoronix Test Suite 7.4.0 Milestone 1
+31 July 2017
+
+pts-core: Don't show PTS version when there is no sub-title, just leave it empty
+pts-core: Add phoronix-test-suite unload-module sub-command
+pts-core: Add phoronix-test-suite auto-load-module sub-command
+pts-core: Drop juju scripts as appears unmaintained, happy to re-add if maintained
+pts-core: Allow showing existing results from a result file in-progress on test runs
+pts_Graph: Color tweaking
+phodevi: Clear up extra potential fluff in the GPU model string
+perf_tips: New module to indicate various performance tips to users
+
+Phoronix Test Suite 7.2.1-Trysil
+30 June 2017
+
+pts-core: Don't pass arguments in quotes to pre/interim/post test scripts
+pts-core: Minor optimization to is_test_profile() and more easily allow explicit paths to be used, overriding what's in OB cache
+pts-core: Minor optimization to is_suite() and more easily allow explicit paths to be used, overriding what's in OB cache
+pts-core: Fix warning in pts_test_result_parser
+phodevi: AVX-512 reporting
+
+Phoronix Test Suite 7.2.0-Trysil
+8 June 2017
+
+pts-core: Add TurnCharsToSpace support to result parser
+pts_Graph: Fix multi-way comparison detection
+
+Phoronix Test Suite 7.2.0 Milestone 4
+3 June 2017
+
+pts-core: If a OB upload fails with system logs, try again without system logs
+pts-core: Add basic dump-tests-to-git sub-command
+pts-core: Add basic dump-suites-to-git sub-command
+pts-core: Result parser fixes/improvements
+pts-core: Additional safety checks around loading test result arguments from a result file
+pts-core: Add "vulkan-development" external dependency
+pts_Graph: Few tweaks/clean-ups
+pts_Graph: Allow optionally specifying custom colors via the GRAPH_HIGHLIGHT environment variable
+phoromatic: Introduce support for setting a run-priority on test schedules
+
+Phoronix Test Suite 7.2.0 Milestone 3
+26 May 2017
+
+pts-core: Result parser fixes for some advanced corner cases
 pts-core: Add dump-file-info helper
 phodevi: Fallback for being able to read I/O scheduler on NVMe device on Linux
 phodevi: Monitor *DEBUG* environment variables
 pts_Graph: Key alignment spacing fix
 pts_Graph: Don't allow duplicate identifiers
+pts_Graph: Various other alignment tweaks
 phoromatic: Handling for non-PCNTL support in Phoromatic client
 
 Phoronix Test Suite 7.2.0 Milestone 2

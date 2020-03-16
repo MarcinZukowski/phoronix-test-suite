@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2010 - 2015, Phoronix Media
-	Copyright (C) 2010 - 2015, Michael Larabel
+	Copyright (C) 2010 - 2019, Phoronix Media
+	Copyright (C) 2010 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -28,9 +28,9 @@ class dump_documentation implements pts_option_interface
 		$html_doc = new pts_html_template(pts_core::program_title(false), 'Test Client Documentation');
 
 		$pdf->AddPage();
-		$pdf->Image(PTS_CORE_STATIC_PATH . 'images/pts-308x160.png', 69, 85, 73, 38, 'PNG', 'http://www.phoronix-test-suite.com/');
+		$pdf->Image(PTS_CORE_STATIC_PATH . 'images/pts-308x160.png', 69, 85, 73, 38, 'PNG', 'https://www.phoronix-test-suite.com/');
 		$pdf->Ln(120);
-		$pdf->WriteStatement('www.phoronix-test-suite.com', 'C', 'http://www.phoronix-test-suite.com/');
+		$pdf->WriteStatement('www.phoronix-test-suite.com', 'C', 'https://www.phoronix-test-suite.com/');
 		$pdf->Ln(15);
 		$pdf->WriteBigHeaderCenter(pts_core::program_title(true));
 		$pdf->WriteHeaderCenter('User Manual');
@@ -40,6 +40,7 @@ class dump_documentation implements pts_option_interface
 
 		// Write the test options HTML
 		$dom = new DOMDocument();
+		$dom->formatOutput = true;
 		$html = $dom->createElement('html');
 		$dom->appendChild($html);
 		$head = $dom->createElement('head');
@@ -84,6 +85,7 @@ class dump_documentation implements pts_option_interface
 
 		// Write the module options HTML
 		$dom = new DOMDocument();
+		$dom->formatOutput = true;
 		$html = $dom->createElement('html');
 		$dom->appendChild($html);
 		$head = $dom->createElement('head');
@@ -93,7 +95,7 @@ class dump_documentation implements pts_option_interface
 		$body = $dom->createElement('body');
 		$html->appendChild($body);
 
-		$p = $dom->createElement('p', 'The following list is the modules included with the Phoronix Test Suite that are intended to extend the functionality of pts-core. Some of these options have commands that can be run directly in a similiar manner to the other Phoronix Test Suite user commands. Some modules are just meant to be loaded directly by adding the module name to the LoadModules tag in ~/.phoronix-test-suite/user-config.xml or via the PTS_MODULES environmental variable. A list of available modules is also available by running ');
+		$p = $dom->createElement('p', 'The following list is the modules included with the Phoronix Test Suite that are intended to extend the functionality of pts-core. Some of these options have commands that can be run directly in a similiar manner to the other Phoronix Test Suite user commands. Some modules are just meant to be loaded directly by adding the module name to the AutoLoadModules tag in ~/.phoronix-test-suite/user-config.xml or via the PTS_MODULES environment variable. A list of available modules is also available by running ');
 		$em = $dom->createElement('em', 'phoronix-test-suite list-modules.');
 		$p->appendChild($em);
 		$phr = $dom->createElement('hr');
@@ -137,6 +139,7 @@ class dump_documentation implements pts_option_interface
 
 		// Write the external dependencies HTML
 		$dom = new DOMDocument();
+		$dom->formatOutput = true;
 		$html = $dom->createElement('html');
 		$dom->appendChild($html);
 		$head = $dom->createElement('head');
@@ -172,6 +175,7 @@ class dump_documentation implements pts_option_interface
 
 		// Write the virtual suites HTML
 		$dom = new DOMDocument();
+		$dom->formatOutput = true;
 		$html = $dom->createElement('html');
 		$dom->appendChild($html);
 		$head = $dom->createElement('head');
@@ -205,10 +209,12 @@ class dump_documentation implements pts_option_interface
 		$dom->saveHTMLFile(PTS_PATH . 'documentation/stubs/55_virtual_suites.html');
 
 		// Load the HTML documentation
+		$md = new pts_md_template();
 		foreach(pts_file_io::glob(PTS_PATH . 'documentation/stubs/*_*.html') as $html_file)
 		{
 			$pdf->html_to_pdf($html_file);
 			$html_doc->html_to_html($html_file);
+			$md->html_to_md($html_file);
 		}
 
 		if(!is_writable(PTS_PATH . 'documentation/'))
@@ -221,6 +227,8 @@ class dump_documentation implements pts_option_interface
 			$pdf->Output($pdf_file);
 			$html_doc->Output(PTS_PATH . 'documentation/phoronix-test-suite.html');
 			echo PHP_EOL . 'Saved To: ' . $pdf_file . PHP_EOL . PHP_EOL;
+
+			$md->Output(PTS_PATH . 'documentation/phoronix-test-suite.md');
 
 			// Also re-generate the man page
 			$man_page = '.TH phoronix-test-suite 1  "www.phoronix-test-suite.com" "' . PTS_VERSION . '"' . PHP_EOL . '.SH NAME' . PHP_EOL;
@@ -245,7 +253,7 @@ class dump_documentation implements pts_option_interface
 					$man_page .= '.B ' . trim($option[0] . ' ' . (!empty($option[1]) && is_array($option[1]) ? implode(' ', $option[1]) : null)) . PHP_EOL . $option[2] . PHP_EOL . '.TP' . PHP_EOL;
 				}
 			}
-			$man_page .= '.SH SEE ALSO' . PHP_EOL . '.B Websites:' . PHP_EOL . '.br' . PHP_EOL . 'http://www.phoronix-test-suite.com/' . PHP_EOL . '.br' . PHP_EOL . 'http://commercial.phoronix-test-suite.com/' . PHP_EOL . '.br' . PHP_EOL . 'http://www.openbenchmarking.org/' . PHP_EOL . '.br' . PHP_EOL . 'http://www.phoronix.com/' . PHP_EOL . '.br' . PHP_EOL . 'http://www.phoronix.com/forums/' . PHP_EOL;
+			$man_page .= '.SH SEE ALSO' . PHP_EOL . '.B Websites:' . PHP_EOL . '.br' . PHP_EOL . 'https://www.phoronix-test-suite.com/' . PHP_EOL . '.br' . PHP_EOL . 'https://commercial.phoronix-test-suite.com/' . PHP_EOL . '.br' . PHP_EOL . 'https://www.openbenchmarking.org/' . PHP_EOL . '.br' . PHP_EOL . 'https://www.phoronix.com/' . PHP_EOL . '.br' . PHP_EOL . 'https://www.phoronix.com/forums/' . PHP_EOL;
 			$man_page .= '.SH AUTHORS' . PHP_EOL . 'Copyright 2008 - ' . date('Y') . ' by Phoronix Media, Michael Larabel.' . PHP_EOL . '.TP' . PHP_EOL;
 
 			file_put_contents(PTS_PATH . 'documentation/man-pages/phoronix-test-suite.1', $man_page);
@@ -253,7 +261,7 @@ class dump_documentation implements pts_option_interface
 
 
 		// simple README
-		$readme = '# Phoronix Test Suite ' . PTS_VERSION . PHP_EOL . 'http://www.phoronix-test-suite.com/' . PHP_EOL . PHP_EOL;
+		$readme = '# Phoronix Test Suite ' . PTS_VERSION . PHP_EOL . 'https://www.phoronix-test-suite.com/' . PHP_EOL . PHP_EOL;
 		$readme .= pts_documentation::basic_description() . PHP_EOL . PHP_EOL;
 		$readme .= pts_file_io::file_get_contents(PTS_PATH . 'documentation/stubs/readme-basics.txt') . PHP_EOL . PHP_EOL;
 		$readme = wordwrap($readme, 80, PHP_EOL);
@@ -264,18 +272,27 @@ class dump_documentation implements pts_option_interface
 		$html_doc = new pts_html_template(pts_core::program_title(false), 'Phoromatic Documentation');
 
 		$pdf->AddPage();
-		$pdf->Image(PTS_CORE_STATIC_PATH . 'images/pts-308x160.png', 69, 85, 73, 38, 'PNG', 'http://www.phoronix-test-suite.com/');
+		$pdf->Image(PTS_CORE_STATIC_PATH . 'images/pts-308x160.png', 69, 85, 73, 38, 'PNG', 'https://www.phoronix-test-suite.com/');
 		$pdf->Ln(120);
-		$pdf->WriteStatement('www.phoronix-test-suite.com', 'C', 'http://www.phoronix-test-suite.com/');
+		$pdf->WriteStatement('www.phoronix-test-suite.com', 'C', 'https://www.phoronix-test-suite.com/');
 		$pdf->Ln(15);
-		$pdf->Image(PTS_CORE_STATIC_PATH . 'images/phoromatic-390x56.png', 55, 250, 0, 0, 'PNG', 'http://www.phoronix-test-suite.com/');
-		//$pdf->Image(PTS_CORE_STATIC_PATH . 'images/phoromatic-390x56.png', 69, 85, 73, 38, 'PNG', 'http://www.phoromatic.com/');
+		$pdf->Image(PTS_CORE_STATIC_PATH . 'images/phoromatic-390x56.png', 55, 250, 0, 0, 'PNG', 'https://www.phoronix-test-suite.com/');
+		//$pdf->Image(PTS_CORE_STATIC_PATH . 'images/phoromatic-390x56.png', 69, 85, 73, 38, 'PNG', 'https://www.phoromatic.com/');
 		$pdf->WriteBigHeaderCenter(pts_core::program_title(true));
 		$pdf->WriteHeaderCenter('Phoromatic User Manual');
 		$pdf->html_to_pdf(PTS_PATH . 'documentation/phoromatic.html');
 		$pdf_file = PTS_PATH . 'documentation/phoromatic.pdf';
 		$pdf->Output($pdf_file);
+
 		echo PHP_EOL . 'Saved To: ' . $pdf_file . PHP_EOL . PHP_EOL;
+
+		$md = new pts_md_template();
+		$md->html_to_md(PTS_PATH . 'documentation/phoromatic.html');
+		$md->Output(PTS_PATH . 'documentation/phoromatic.md');
+
+		$md = new pts_md_template();
+		$md->html_to_md(PTS_PATH . 'documentation/phoronix-test-suite-windows.html');
+		$md->Output(PTS_PATH . 'documentation/phoronix-test-suite-window.md');
 
 	}
 }

@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2013 - 2016, Phoronix Media
-	Copyright (C) 2013 - 2016, Michael Larabel
+	Copyright (C) 2013 - 2018, Phoronix Media
+	Copyright (C) 2013 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 
 include('../phoromatic_functions.php');
 phoromatic_init_web_page_setup();
+pts_network::client_startup();
 
 interface pts_webui_interface
 {
@@ -80,7 +81,7 @@ $page_class = 'phoromatic_' . PAGE_REQUEST;
 pts_webui::websocket_setup_defines();
 $page_class = pts_webui::load_web_interface($page_class, $PATH, '../pages/');
 
-if(substr($PAGE_REQUEST, 0, 2) == 'r_' || isset($_GET['download']))
+if(substr($PAGE_REQUEST, 0, 2) == 'r_' || isset($_GET['download']) || isset($_GET['export']))
 {
 	// RESOURCE
 	phoromatic_server::prepare_database();
@@ -98,15 +99,13 @@ if(substr($PAGE_REQUEST, 0, 2) == 'r_' || isset($_GET['download']))
 <html>
 <head>
 <script src="/phoromatic.js?<?php echo date('Ymd') . PTS_CORE_VERSION; ?>" type="text/javascript"></script>
-<title>Phoronix Test Suite - Phoromatic - <?php echo $page_class::page_title(); ?></title>
+<title>Phoronix Test Suite <?php echo PTS_VERSION; ?> - Phoromatic - <?php echo $page_class::page_title(); ?></title>
 <link href="/phoromatic.css?<?php echo date('Ymd') . PTS_CORE_VERSION; ?>" rel="stylesheet" type="text/css" />
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="keywords" content="Phoronix Test Suite, open-source benchmarking, Linux benchmarking, automated testing" />
 <meta name="Description" content="Phoronix Test Suite local control server." />
 <link rel="shortcut icon" href="favicon.ico" />
-<link href='https://fonts.googleapis.com/css?family=Quicksand:700' rel='stylesheet' type='text/css'/>
-<link href='https://fonts.googleapis.com/css?family=Raleway' rel='stylesheet' type='text/css'/>
 <?php
 
 if(isset($_SESSION['UserID']))

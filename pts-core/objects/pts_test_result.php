@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2017, Phoronix Media
-	Copyright (C) 2008 - 2017, Michael Larabel
+	Copyright (C) 2008 - 2020, Phoronix Media
+	Copyright (C) 2008 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -27,6 +27,9 @@ class pts_test_result
 	private $used_arguments;
 	private $used_arguments_description;
 	private $result_precision = 2;
+	private $overrode_default_precision = false;
+	private $annotation = null;
+	private $parent_hash = null;
 
 	public $test_profile;
 	public $test_result_buffer;
@@ -38,6 +41,9 @@ class pts_test_result
 	// Added to make it easy to have PTS modules run a custom binary prior to running a program for the test
 	public $exec_binary_prepend = null;
 	public $test_result_standard_output = null;
+
+	protected $already_normalized = false;
+	public $dynamically_generated = false;
 
 	public function __construct($test_profile)
 	{
@@ -62,19 +68,51 @@ class pts_test_result
 	{
 		$this->used_arguments_description = $arguments_description;
 	}
+	public function remove_from_used_arguments_description($remove_string)
+	{
+		$this->used_arguments_description = str_replace($remove_string, '', $this->used_arguments_description);
+	}
 	public function append_to_arguments_description($arguments_description)
 	{
 		if(strpos(' ' . $this->used_arguments_description . ' ', ' ' . $arguments_description . ' ') === false)
 		{
-			$this->used_arguments_description .= ($this->used_arguments_description != null ? ' ' : null) . $arguments_description;
+			if(($x = strpos($arguments_description, ': ')) !== false)
+			{
+				$prefix_being_added = substr($arguments_description, 0, $x);
+
+				// Remove the old prefix to avoid when re-running tests that it could see multiple things appended from older version
+				// Encountered when introducing the append to test arguments for Mad Max test profile
+				if(($x = strpos($this->used_arguments_description, ' ' . $prefix_being_added)) !== false)
+				{
+					$this->used_arguments_description = substr($this->used_arguments_description, 0, $x);
+				}
+			}
+
+			$this->used_arguments_description .= ($this->used_arguments_description != null && $arguments_description[0] != ' ' ? ' ' : null) . $arguments_description;
 		}
 	}
-	public function set_result_precision($precision = 2)
+	public function set_result_precision($precision)
 	{
+		if(!is_numeric($precision) || $precision < 0)
+		{
+			return false;
+		}
+
 		$this->result_precision = $precision;
+		$this->overrode_default_precision = true;
 	}
 	public function get_result_precision()
 	{
+		if(!$this->overrode_default_precision && isset($this->active->results) && !empty($this->active->results))
+		{
+			// default precision
+			$p = pts_math::get_precision($this->active->results);
+			if($p > 0 && $p < 10)
+			{
+				return $p;
+			}
+		}
+
 		return $this->result_precision;
 	}
 	public function set_used_arguments($used_arguments)
@@ -88,6 +126,64 @@ class pts_test_result
 	public function get_arguments_description()
 	{
 		return $this->used_arguments_description;
+	}
+	public function set_annotation($annotation)
+	{
+		$this->annotation = $annotation;
+	}
+	public function append_annotation($annotation)
+	{
+		if(strpos($this->annotation, $annotation) === false)
+		{
+			$this->annotation .= ' ' . PHP_EOL . $annotation;
+		}
+	}
+	public function get_annotation()
+	{
+		return $this->annotation;
+	}
+	public function set_parent_hash_from_result(&$result_object)
+	{
+		$this->parent_hash = $result_object->get_comparison_hash(true, false);
+	}
+	public function set_parent_hash($parent)
+	{
+		$this->parent_hash = $parent;
+	}
+	public function get_parent_hash()
+	{
+		return $this->parent_hash;
+	}
+	public function get_arguments_description_shortened($compact_words = true)
+	{
+		$shortened = explode(' - ', $this->used_arguments_description);
+		foreach($shortened as &$part)
+		{
+			if(($x = strpos($part, ': ')) !== false)
+			{
+				$part = substr($part, $x + 2);
+			}
+			if($compact_words && isset($part[18]) && strpos($part, ' ') != false && function_exists('preg_replace'))
+			{
+				$part = implode('.', str_split(preg_replace('/\b(\w)|./', '$1', $part)));
+			}
+		}
+
+		$shortened = implode(' - ', $shortened) . ' ';
+
+		$shorten_words = array(
+			'Random' => 'Rand',
+			'Sequential' => 'Seq',
+			'localhost -' => '',
+			'- D.T.D' => '',
+			);
+
+		foreach($shorten_words as $word => $to)
+		{
+			$shortened = str_ireplace($word . ' ', $to . ' ', $shortened);
+		}
+
+		return trim($shortened);
 	}
 	public function get_comparison_hash($show_version_and_attributes = true, $raw_output = true)
 	{
@@ -181,44 +277,71 @@ class pts_test_result
 
 		return $largest_variation;
 	}
-	public function get_result_first()
+	public function get_result_first($return_identifier = true)
 	{
 		// a.k.a. the result winner
 		$winner = null;
 
 		if($this->test_profile->get_result_proportion() == 'LIB')
 		{
-			$winner = $this->test_result_buffer->get_min_value(true);
+			$winner = $this->test_result_buffer->get_min_value($return_identifier);
 		}
 		else if($this->test_profile->get_result_proportion() == 'HIB')
 		{
-			$winner = $this->test_result_buffer->get_max_value(true);
+			$winner = $this->test_result_buffer->get_max_value($return_identifier);
 		}
 
 		return $winner;
 	}
-	public function get_result_last()
+	public function get_result_last($return_identifier = true)
 	{
 		// a.k.a. the result loser
 		$winner = null;
 
 		if($this->test_profile->get_result_proportion() == 'HIB')
 		{
-			$winner = $this->test_result_buffer->get_min_value(true);
+			$winner = $this->test_result_buffer->get_min_value($return_identifier);
 		}
 		else if($this->test_profile->get_result_proportion() == 'LIB')
 		{
-			$winner = $this->test_result_buffer->get_max_value(true);
+			$winner = $this->test_result_buffer->get_max_value($return_identifier);
 		}
 
 		return $winner;
 	}
-	public function normalize_buffer_values($normalize_against = false)
+	public function get_spread($noisy_check = true)
+	{
+		if($noisy_check && $this->has_noisy_result())
+		{
+			return -1;
+		}
+
+		$best = $this->get_result_first(false);
+		$worst = $this->get_result_last(false);
+
+		if(!is_numeric($best) || !is_numeric($worst))
+		{
+			return -1;
+		}
+
+		$spread = $best / $worst;
+		if($this->test_profile->get_result_proportion() == 'LIB')
+		{
+			$spread = 1 / $spread;
+		}
+		return $spread;
+	}
+	public function normalize_buffer_values($normalize_against = false, $extra_attributes = null)
 	{
 		if($this->test_profile->get_display_format() != 'BAR_GRAPH') // BAR_ANALYZE_GRAPH is currently unsupported
 		{
 			return false;
 		}
+		if($this->already_normalized)
+		{
+			return false;
+		}
+		$this->already_normalized = true;
 
 		$is_multi_way = pts_render::multi_way_identifier_check($this->test_result_buffer->get_identifiers());
 		$keys = array_keys($this->test_result_buffer->buffer_items);
@@ -229,7 +352,7 @@ class pts_test_result
 			foreach($keys as $k)
 			{
 				$identifier_r = pts_strings::trim_explode(': ', $this->test_result_buffer->buffer_items[$k]->get_result_identifier());
-				$position = 1;
+				$position = !isset($extra_attributes['multi_way_comparison_invert_default']) ? 0 : 1;
 
 				if(!isset($key_sets[$identifier_r[$position]]))
 				{
@@ -251,7 +374,7 @@ class pts_test_result
 				// Invert values for LIB
 				foreach($keys as $k)
 				{
-					$this->test_result_buffer->buffer_items[$k]->reset_result_value((1 / $this->test_result_buffer->buffer_items[$k]->get_result_value()));
+					$this->test_result_buffer->buffer_items[$k]->reset_result_value((1 / $this->test_result_buffer->buffer_items[$k]->get_result_value()), false);
 				}
 			}
 
@@ -260,26 +383,21 @@ class pts_test_result
 			{
 				foreach($keys as $k)
 				{
-					if($is_multi_way && strpos($this->test_result_buffer->buffer_items[$k]->get_result_identifier(), ': ' . $normalize_against) !== false)
-					{
-						// This allows it to just normalize against part of the string
-						$divide_value = $this->test_result_buffer->buffer_items[$k]->get_result_value();
-						break;
-					}
-					else if($this->test_result_buffer->buffer_items[$k]->get_result_identifier() == $normalize_against)
+					if(strpos($this->test_result_buffer->buffer_items[$k]->get_result_identifier(), strval($normalize_against)) !== false)
 					{
 						$divide_value = $this->test_result_buffer->buffer_items[$k]->get_result_value();
 						break;
 					}
 				}
 			}
+
 			if($divide_value == -1)
 			{
 				if($is_multi_way) // find the largest value to use as divide value
 				{
 					foreach($keys as $k)
 					{
-						if($this->test_result_buffer->buffer_items[$k]->get_result_value() > $divide_value)
+						if($this->test_result_buffer->buffer_items[$k]->get_result_value() > $divide_value || $divide_value == -1)
 						{
 							$divide_value = $this->test_result_buffer->buffer_items[$k]->get_result_value();
 						}
@@ -301,8 +419,10 @@ class pts_test_result
 			{
 				foreach($keys as $k)
 				{
-					$normalized = pts_math::set_precision(($this->test_result_buffer->buffer_items[$k]->get_result_value() / $divide_value), max(3, $this->result_precision));
-					$this->test_result_buffer->buffer_items[$k]->reset_result_value($normalized);
+					$normalized = ($this->test_result_buffer->buffer_items[$k]->get_result_value() / $divide_value);
+					$normalized_attempt = pts_math::set_precision($normalized, max(3, $this->result_precision));
+					$normalized = !empty($normalized_attempt) ? $normalized_attempt : $normalized;
+					$this->test_result_buffer->buffer_items[$k]->reset_result_value($normalized, false);
 					$this->test_result_buffer->buffer_items[$k]->reset_raw_value(0);
 				}
 			}
@@ -311,6 +431,15 @@ class pts_test_result
 		$this->test_profile->set_result_proportion('HIB');
 		$this->test_profile->set_result_scale('Relative Performance');
 		return true;
+	}
+	public function sort_results_by_performance()
+	{
+		$this->test_result_buffer->buffer_values_sort();
+
+		if($this->test_profile->get_result_proportion() == 'HIB')
+		{
+			$this->test_result_buffer->buffer_values_reverse();
+		}
 	}
 	public function remove_unchanged_results($change_threshold = 0.03)
 	{
@@ -368,6 +497,39 @@ class pts_test_result
 		}
 		return true;
 	}
+	public function get_result_value_from_name($name)
+	{
+		$val = null;
+		foreach(array_keys($this->test_result_buffer->buffer_items) as $k)
+		{
+			if($this->test_result_buffer->buffer_items[$k]->get_result_identifier() == $name)
+			{
+				$val = $this->test_result_buffer->buffer_items[$k]->get_result_value();
+				break;
+			}
+		}
+		return $val;
+	}
+	public function has_noisy_result($noise_level_percent = 6)
+	{
+		$val = null;
+		foreach(array_keys($this->test_result_buffer->buffer_items) as $k)
+		{
+			if($this->test_profile->get_display_format() != 'BAR_GRAPH')
+			{
+				continue;
+			}
+			$raw = $this->test_result_buffer->buffer_items[$k]->get_result_raw_array();
+			if(!empty($raw) && count($raw) > 2)
+			{
+				if(($p = pts_math::percent_standard_deviation($raw)) > $noise_level_percent)
+				{
+					return $p;
+				}
+			}
+		}
+		return false;
+	}
 	public function remove_noisy_results($threshold = 0.6)
 	{
 		if($this->test_profile->get_display_format() != 'BAR_GRAPH') // BAR_ANALYZE_GRAPH is currently unsupported
@@ -402,10 +564,10 @@ class pts_test_result
 			$jiggy_results = 0;
 			foreach($keys as $k)
 			{
-				$raw = $this->test_result_buffer->buffer_items[$k]->get_result_raw();
+				$raw = $this->test_result_buffer->buffer_items[$k]->get_result_raw_array();
 				if(!empty($raw))
 				{
-					$raw = pts_math::standard_error(pts_strings::colon_explode($raw));
+					$raw = pts_math::standard_error($raw);
 					if($raw > 10)
 					{
 						$jiggy_results++;
@@ -422,6 +584,27 @@ class pts_test_result
 			}
 		}
 		return true;
+	}
+	public function recalculate_averages_without_outliers($mag = 2)
+	{
+		if($this->test_profile->get_display_format() != 'BAR_GRAPH') // BAR_ANALYZE_GRAPH is currently unsupported
+		{
+			return false;
+		}
+
+		foreach(array_keys($this->test_result_buffer->buffer_items) as $i => $k)
+		{
+			$raw = $this->test_result_buffer->buffer_items[$k]->get_result_raw_array();
+			if(!empty($raw))
+			{
+				$raw = pts_math::remove_outliers($raw, $mag);
+				if(count($raw) > 0)
+				{
+					$this->test_result_buffer->buffer_items[$k]->reset_result_value(pts_math::arithmetic_mean($raw));
+					$this->test_result_buffer->buffer_items[$k]->reset_raw_value(implode(':', $raw));
+				}
+			}
+		}
 	}
 	public function points_of_possible_interest($threshold_level = 0.05, $adaptive = true)
 	{

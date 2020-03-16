@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2014 - 2017, Phoronix Media
-	Copyright (C) 2014 - 2017, Michael Larabel
+	Copyright (C) 2014 - 2018, Phoronix Media
+	Copyright (C) 2014 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ class phoromatic_server
 	}
 	public static function phoromatic_path()
 	{
-		$PHOROMATIC_PATH = pts_strings::parse_for_home_directory(pts_config::read_user_config('PhoronixTestSuite/Options/Server/PhoromaticStorage', ''));
+		$PHOROMATIC_PATH = pts_config::read_path_config('PhoronixTestSuite/Options/Server/PhoromaticStorage', '');
 
 		if(empty($PHOROMATIC_PATH) || ((is_dir($PHOROMATIC_PATH) && !is_writable($PHOROMATIC_PATH)) || !is_writable(dirname($PHOROMATIC_PATH))))
 		{
@@ -53,28 +53,69 @@ class phoromatic_server
 	}
 	public static function find_download_cache()
 	{
-		if(is_file(PTS_DOWNLOAD_CACHE_PATH . 'pts-download-cache.json'))
+		static $dc_file = false;
+
+		if($dc_file == false)
 		{
-			$dc_file = PTS_DOWNLOAD_CACHE_PATH . 'pts-download-cache.json';
-		}
-		else if(is_file('/var/cache/phoronix-test-suite/download-cache/pts-download-cache.json'))
-		{
-			$dc_file = '/var/cache/phoronix-test-suite/download-cache/pts-download-cache.json';
-		}
-		else if(is_file(PTS_SHARE_PATH . 'download-cache/pts-download-cache.json'))
-		{
-			$dc_file = PTS_SHARE_PATH . 'download-cache/pts-download-cache.json';
-		}
-		else
-		{
-			$dc = pts_strings::add_trailing_slash(pts_strings::parse_for_home_directory(pts_config::read_user_config('PhoronixTestSuite/Options/Installation/CacheDirectory', PTS_DOWNLOAD_CACHE_PATH)));
-			if(is_file($dc . 'pts-download-cache.json'))
+			if(($dc = pts_client::download_cache_path()) && is_file($dc . 'pts-download-cache.json'))
 			{
 				$dc_file = $dc . 'pts-download-cache.json';
+			}
+			else if(is_file(PTS_DOWNLOAD_CACHE_PATH . 'pts-download-cache.json'))
+			{
+				$dc_file = PTS_DOWNLOAD_CACHE_PATH . 'pts-download-cache.json';
+			}
+			else if(is_file('/var/cache/phoronix-test-suite/download-cache/pts-download-cache.json'))
+			{
+				$dc_file = '/var/cache/phoronix-test-suite/download-cache/pts-download-cache.json';
+			}
+			else if(is_file(PTS_SHARE_PATH . 'download-cache/pts-download-cache.json'))
+			{
+				$dc_file = PTS_SHARE_PATH . 'download-cache/pts-download-cache.json';
 			}
 		}
 
 		return $dc_file;
+	}
+	public static function download_cache_items()
+	{
+		$items = array();
+
+		if(($dc = phoromatic_server::find_download_cache()))
+		{
+			$cache_json = file_get_contents($dc);
+			$cache_json = json_decode($cache_json, true);
+
+			if($cache_json && isset($cache_json['phoronix-test-suite']['download-cache']))
+			{
+				foreach($cache_json['phoronix-test-suite']['download-cache'] as $file_name => $info)
+				{
+					$items[$file_name] = $info;
+				}
+			}
+
+			// looking for files added but not in the JSON cache, a.k.a. files uploaded but not make-download-cache run since
+			foreach(pts_file_io::glob(dirname($dc) . '/*') as $file_in_dir)
+			{
+				$f = basename($file_in_dir);
+				if($f == 'pts-download-cache.json')
+				{
+					continue;
+				}
+				if(!isset($items[$f]))
+				{
+					$items[$f] = array(
+					'file_name' => $f,
+					'file_size' => filesize($file_in_dir),
+					'associated_tests' => array(),
+					'md5' => md5_file($file_in_dir),
+					'sha256' => hash_file('sha256', $file_in_dir),
+					);
+				}
+			}
+			ksort($items);
+		}
+		return $items;
 	}
 	public static function is_phoromatic_account_path($account_id)
 	{
@@ -316,6 +357,10 @@ class phoromatic_server
 				// Change made 15 April 2016
 				self::$db->exec('ALTER TABLE phoromatic_systems ADD COLUMN CurrentProcessTicket INTEGER DEFAULT 0');
 				self::$db->exec('PRAGMA user_version = 36');
+			case 36:
+				// Change made 30 May 2017 for introducing run priority
+				self::$db->exec('ALTER TABLE phoromatic_schedules ADD COLUMN RunPriority INTEGER DEFAULT 100');
+				self::$db->exec('PRAGMA user_version = 37');
 		}
 		chmod($db_file, 0600);
 		if(!defined('PHOROMATIC_DB_INIT'))
@@ -512,6 +557,21 @@ class phoromatic_server
 
 		return $group_names[$account_id];
 	}
+	public static function account_created_on($account_id)
+	{
+		static $created_dates;
+
+		if(!isset($created_dates[$account_id]) || empty($created_dates[$account_id]))
+		{
+			$stmt = phoromatic_server::$db->prepare('SELECT CreatedOn FROM phoromatic_accounts WHERE AccountID = :account_id');
+			$stmt->bindValue(':account_id', $account_id);
+			$result = $stmt->execute();
+			$row = $result ? $result->fetchArray() : false;
+			$created_dates[$account_id] = isset($row['CreatedOn']) ? $row['CreatedOn'] : null;
+		}
+
+		return $created_dates[$account_id];
+	}
 	public static function recently_active_systems($account_id)
 	{
 		$systems = array();
@@ -686,7 +746,7 @@ class phoromatic_server
 
 		return $schedules;
 	}
-	public static function system_has_outstanding_jobs($account_id, $system_id, $time_offset = 0)
+	public static function system_has_outstanding_jobs($account_id, $system_id, $time_offset = 0, $include_low_priority_work = true)
 	{
 		$stmt = phoromatic_server::$db->prepare('SELECT Groups FROM phoromatic_systems WHERE AccountID = :account_id AND SystemID = :system_id LIMIT 1');
 		$stmt->bindValue(':account_id', $account_id);
@@ -696,7 +756,7 @@ class phoromatic_server
 
 
 		// See if there's an open schedule to run for system
-		$schedule_row = self::system_check_for_open_schedule_run($account_id, $system_id, $time_offset, $sys_row);
+		$schedule_row = self::system_check_for_open_schedule_run($account_id, $system_id, $time_offset, $sys_row, $include_low_priority_work);
 		if($schedule_row != false)
 		{
 			return $schedule_row;
@@ -711,9 +771,18 @@ class phoromatic_server
 
 		return false;
 	}
-	public static function system_check_for_open_schedule_run($account_id, $system_id, $time_offset = 0, &$sys_row)
+	public static function system_check_for_open_schedule_run($account_id, $system_id, $time_offset = 0, &$sys_row, $include_low_priority_work = true)
 	{
-		$stmt = phoromatic_server::$db->prepare('SELECT * FROM phoromatic_schedules WHERE AccountID = :account_id AND State = 1 AND (SELECT COUNT(*) FROM phoromatic_schedules_tests WHERE AccountID = :account_id AND ScheduleID = phoromatic_schedules.ScheduleID) > 0');
+		if($include_low_priority_work)
+		{
+			$stmt = phoromatic_server::$db->prepare('SELECT * FROM phoromatic_schedules WHERE AccountID = :account_id AND State = 1 AND (SELECT COUNT(*) FROM phoromatic_schedules_tests WHERE AccountID = :account_id AND ScheduleID = phoromatic_schedules.ScheduleID) > 0 ORDER BY RunPriority DESC');
+		}
+		else
+		{
+			// Only include higher priority work
+			$stmt = phoromatic_server::$db->prepare('SELECT * FROM phoromatic_schedules WHERE AccountID = :account_id AND State = 1 AND RunPriority >= 100 AND (SELECT COUNT(*) FROM phoromatic_schedules_tests WHERE AccountID = :account_id AND ScheduleID = phoromatic_schedules.ScheduleID) > 0 ORDER BY RunPriority DESC');
+		}
+
 		$stmt->bindValue(':account_id', $account_id);
 		$result = $stmt->execute();
 		$day_of_week_int = date('N') - 1;

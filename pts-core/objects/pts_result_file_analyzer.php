@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2010 - 2016, Phoronix Media
-	Copyright (C) 2010 - 2016, Michael Larabel
+	Copyright (C) 2010 - 2020, Phoronix Media
+	Copyright (C) 2010 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,6 +22,886 @@
 
 class pts_result_file_analyzer
 {
+	public static function condense_result_file_by_multi_option_tests(&$result_file)
+	{
+		$pmap = array();
+		$do_proceed = false;
+		foreach($result_file->get_result_objects() as $index => $ro)
+		{
+			if($ro->test_profile->get_identifier() == null || $ro->test_profile->get_display_format() != 'BAR_GRAPH')
+			{
+				continue;
+			}
+			$args = $ro->get_arguments_description();
+			$scale = $ro->test_profile->get_result_scale();
+			foreach(explode(' - ', $args) as $arg)
+			{
+				$args_without_current_arg = str_replace($arg, '', $args);
+				if(!isset($pmap[$ro->test_profile->get_identifier()][$args_without_current_arg]))
+				{
+					$pmap[$ro->test_profile->get_identifier()][$args_without_current_arg] = array();
+				}
+				if(!isset($pmap[$ro->test_profile->get_identifier()][$args_without_current_arg][$scale]))
+				{
+					$pmap[$ro->test_profile->get_identifier()][$args_without_current_arg][$scale] = array();
+				}
+				$pmap[$ro->test_profile->get_identifier()][$args_without_current_arg][$scale][$arg] = $index;
+
+				if(!$do_proceed && count($pmap[$ro->test_profile->get_identifier()][$args_without_current_arg][$scale]) > 1)
+				{
+					$do_proceed = true;
+				}
+			}
+		}
+
+		if($do_proceed)
+		{
+			$system_count = $result_file->get_system_count();
+			$new_result_objects = array();
+			$global_results_to_drop = array();
+			foreach(array_keys($pmap) as $distinct_test)
+			{
+				foreach(array_keys($pmap[$distinct_test]) as $test_combo)
+				{
+					foreach(array_keys($pmap[$distinct_test][$test_combo]) as $scale)
+					{
+						$test_profile = new pts_test_profile($distinct_test);
+						$test_result = new pts_test_result($test_profile);
+						$test_result->test_profile->set_identifier(null);
+						$test_result->test_profile->set_display_format('BAR_GRAPH');
+						$test_result->test_profile->set_result_scale($scale);
+						$test_result->set_used_arguments($test_combo);
+						$test_result->test_result_buffer = new pts_test_result_buffer();
+						$comparing = null;
+						$results_to_drop = array();
+						foreach($pmap[$distinct_test][$test_combo][$scale] as $arg => $ro_index)
+						{
+							if(strpos($arg, ': ') !== false)
+							{
+								list($comparing, $arg) = explode(': ', $arg);
+							}
+							if(($ro = $result_file->get_result_object_by_hash($ro_index)))
+							{
+								foreach($ro->test_result_buffer->get_buffer_items() as $old_bi)
+								{
+									$test_result->test_result_buffer->add_test_result(($system_count > 1 ? $old_bi->get_result_identifier() . ': ' : null) . $arg, $old_bi->get_result_value(), $old_bi->get_result_raw(), $old_bi->get_result_json_raw(), $old_bi->get_min_result_value(), $old_bi->get_max_result_value());
+								}
+								$results_to_drop[] = $ro_index;
+							}
+						}
+						$tc = trim(trim(trim($test_combo), '-'));
+						$test_result->set_used_arguments_description($comparing . ' Comparison' . ($tc ? ' (' . $tc . ')' : null));
+						$test_result->test_profile->set_test_title($ro->test_profile->get_title());
+						$test_result->test_profile->set_result_proportion($ro->test_profile->get_result_proportion());
+						$test_result->test_profile->set_version($ro->test_profile->get_app_version());
+						if($test_result->test_result_buffer->get_count() > 1)
+						{
+							$test_result->dynamically_generated = true;
+							$new_result_objects[] = $test_result;
+							$global_results_to_drop = array_merge($global_results_to_drop, $results_to_drop);
+						}
+					}
+				}
+			}
+			if(count($new_result_objects) > 0)
+			{
+				$result_file->remove_result_object_by_id($global_results_to_drop);
+				foreach($new_result_objects as $new_ro)
+				{
+					$result_file->add_result($new_ro);
+				}
+			}
+		}
+	}
+	public static function condense_result_file_by_multi_version_tests(&$result_file)
+	{
+		$pmap = array();
+		$do_proceed = false;
+		foreach($result_file->get_result_objects() as $index => $ro)
+		{
+			if($ro->test_profile->get_identifier() == null || $ro->test_profile->get_display_format() != 'BAR_GRAPH')
+			{
+				continue;
+			}
+			$args = $ro->get_arguments_description();
+			$scale = $ro->test_profile->get_result_scale();
+			$test_identifier_no_version = $ro->test_profile->get_identifier(false);
+
+			if(!isset($pmap[$test_identifier_no_version][$args]))
+			{
+				$pmap[$test_identifier_no_version][$args] = array();
+			}
+			if(!isset($pmap[$test_identifier_no_version][$args][$scale]))
+			{
+				$pmap[$test_identifier_no_version][$args][$scale] = array();
+			}
+			$pmap[$test_identifier_no_version][$args][$scale][$ro->test_profile->get_app_version()] = $index;
+
+			if(!$do_proceed && count($pmap[$test_identifier_no_version][$args][$scale]) > 1)
+			{
+				$do_proceed = true;
+			}
+		}
+
+		if($do_proceed)
+		{
+			$system_count = $result_file->get_system_count();
+			$new_result_objects = array();
+			$global_results_to_drop = array();
+			foreach(array_keys($pmap) as $distinct_test)
+			{
+				foreach(array_keys($pmap[$distinct_test]) as $test_combo)
+				{
+					foreach(array_keys($pmap[$distinct_test][$test_combo]) as $scale)
+					{
+						$test_profile = new pts_test_profile($distinct_test);
+						$test_result = new pts_test_result($test_profile);
+						$test_result->test_profile->set_identifier(null);
+						$test_result->test_profile->set_display_format('BAR_GRAPH');
+						$test_result->test_profile->set_result_scale($scale);
+						$test_result->set_used_arguments($test_combo);
+						$test_result->test_result_buffer = new pts_test_result_buffer();
+						$comparing = null;
+						$results_to_drop = array();
+						foreach($pmap[$distinct_test][$test_combo][$scale] as $version => $ro_index)
+						{
+							if(($ro = $result_file->get_result_object_by_hash($ro_index)))
+							{
+								foreach($ro->test_result_buffer->get_buffer_items() as $old_bi)
+								{
+									$test_result->test_result_buffer->add_test_result(($system_count > 1 ? $old_bi->get_result_identifier() . ': ' : null) . $version, $old_bi->get_result_value(), $old_bi->get_result_raw(), $old_bi->get_result_json_raw(), $old_bi->get_min_result_value(), $old_bi->get_max_result_value());
+								}
+								$results_to_drop[] = $ro_index;
+							}
+						}
+						$tc = trim(trim(trim($test_combo), '-'));
+						$test_result->set_used_arguments_description('Version Comparison' . ($tc ? ' (' . $tc . ')' : null));
+						$test_result->test_profile->set_test_title($ro->test_profile->get_title());
+						$test_result->test_profile->set_result_proportion($ro->test_profile->get_result_proportion());
+						$test_result->test_profile->set_version('');
+						if($test_result->test_result_buffer->get_count() > 1)
+						{
+							$test_result->dynamically_generated = true;
+							$new_result_objects[] = $test_result;
+							$global_results_to_drop = array_merge($global_results_to_drop, $results_to_drop);
+						}
+					}
+				}
+			}
+			if(count($new_result_objects) > 0)
+			{
+				$result_file->remove_result_object_by_id($global_results_to_drop);
+				foreach($new_result_objects as $new_ro)
+				{
+					$result_file->add_result($new_ro);
+				}
+			}
+		}
+	}
+	public static function generate_perf_per_dollar(&$result_file, $identifier, $value, $unit = 'Dollar')
+	{
+		foreach($result_file->get_result_objects() as $result_object)
+		{
+			$result = $result_object->test_result_buffer->get_value_from_identifier($identifier);
+			if($result_object->test_profile->get_identifier() != null && $result_object->test_profile->get_display_format() == 'BAR_GRAPH' && is_numeric($result) && $result > 0)
+			{
+				if($result_object->test_profile->get_result_proportion() == 'HIB')
+				{
+					$result = pts_math::set_precision($result / $value, 3);
+					$scale = $result_object->test_profile->get_result_scale() . ' Per ' . $unit;
+				}
+				else if($result_object->test_profile->get_result_proportion() == 'LIB')
+				{
+					$result = pts_math::set_precision($result * $value, 3);
+					$scale = $result_object->test_profile->get_result_scale() . ' x ' . $unit;
+				}
+				else
+				{
+					break;
+				}
+
+				if($result != 0)
+				{
+					pts_result_file_analyzer::add_perf_per_graph($result_file, $result_object, $identifier, $result, $scale, '$' . $value . ' reported cost.');
+				}
+			}
+		}
+	}
+	public static function add_perf_per_graph(&$result_file, $test_result, $result_identifier, $result, $scale, $footnote = null)
+	{
+		if(empty($result))
+			return false;
+
+		// This copy isn't needed but it's shorter and from port from system_monitor where there can be multiple items tracked
+		$original_parent_hash = $test_result->get_comparison_hash(true, false);
+		$test_result = clone $test_result;
+		$test_result->test_profile->set_identifier(null);
+		$test_result->set_used_arguments_description('Performance / Cost - ' . $test_result->get_arguments_description());
+		$test_result->set_used_arguments('dollar comparison ' . $test_result->get_arguments());
+		$test_result->test_profile->set_result_scale($scale);
+		$test_result->test_result_buffer = new pts_test_result_buffer();
+		$test_result->test_result_buffer->add_test_result($result_identifier, $result, null, array('install-footnote' => $footnote));
+		$test_result->set_parent_hash($original_parent_hash);
+		$result_file->add_result($test_result);
+	}
+	public static function generate_executive_summary($result_file, $selected_result = null,  &$error = null)
+	{
+		$summary = null;
+
+		if($result_file->get_test_count() < 10)
+		{
+			$error = 'Not enough tests to analyze...';
+			return false;
+		}
+		if($result_file->get_system_count() < 2)
+		{
+			$error = 'Not enough results to analyze...';
+			return false;
+		}
+
+		$wins_result = pts_result_file_analyzer::generate_wins_losses_results($result_file, true);
+		$first_place_buffer = $wins_result->test_result_buffer->get_max_value(2);
+
+		if($selected_result && ($sw = $wins_result->test_result_buffer->find_buffer_item($selected_result)))
+		{
+			$summary[] = $selected_result . ' came in first place for ' . floor($sw->get_result_value() / $wins_result->test_result_buffer->get_total_value_sum() * 100) . '% of the tests.';
+		}
+
+		if($first_place_buffer->get_result_identifier() != $selected_result)
+		{
+			// Most wins
+			$summary[] = $first_place_buffer->get_result_identifier() . ' had the most wins, coming in first place for ' . floor($first_place_buffer->get_result_value() / $wins_result->test_result_buffer->get_total_value_sum() * 100) . '% of the tests.';
+		}
+
+		$geo_mean_result = pts_result_file_analyzer::generate_geometric_mean_result($result_file, true);
+		$first_place_buffer = $geo_mean_result->test_result_buffer->get_max_value(2);
+		$last_place_buffer = $geo_mean_result->test_result_buffer->get_min_value(2);
+
+		$geo_bits = array();
+		if($result_file->get_system_count() >= 3)
+		{
+			$prev_buffer = null;
+			foreach($geo_mean_result->test_result_buffer->get_buffer_items() as $bi)
+			{
+				if($prev_buffer == null)
+				{
+					$prev_buffer = $bi;
+					continue;
+				}
+				$geo_bits[] = $bi->get_result_identifier() . ' was ' . round($bi->get_result_value() / $prev_buffer->get_result_value(), 1) . 'x the speed of ' . $prev_buffer->get_result_identifier();
+				$prev_buffer = $bi;
+			}
+		}
+		switch(count($geo_bits))
+		{
+			case 0:
+				$geo_bits = null;
+				break;
+			case 1:
+				$geo_bits = array_pop($geo_bits) . '.';
+				break;
+			case 2:
+				$geo_bits = implode(' and ', $geo_bits) . '.';
+				break;
+			default:
+				$geo_bits = implode(', ', $geo_bits) . '.';
+				break;
+		}
+
+		$summary[] = trim('Based on the geometric mean of all complete results, the fastest (' . $first_place_buffer->get_result_identifier() . ') was ' . round($first_place_buffer->get_result_value() / $last_place_buffer->get_result_value(), 1) . 'x the speed of the slowest (' . $last_place_buffer->get_result_identifier() . '). ' . $geo_bits);
+
+		if($result_file->get_test_count() > 20)
+		{
+			$results = $result_file->get_result_objects();
+			$spreads = array();
+			foreach($results as $i => &$result_object)
+			{
+				$spreads[$i] = $result_object->get_spread();
+			}
+			arsort($spreads);
+			$spreads = array_slice($spreads, 0, 10, true);
+
+			if(!empty($spreads))
+			{
+				$spread_text = array();
+				foreach($spreads as $result_key => $spread)
+				{
+					$ro = $result_file->get_result_objects($result_key);
+					if(!is_object($ro[0]))
+					{
+						continue;
+					}
+					$spread_text[] = $ro[0]->test_profile->get_title() . ' (' . $ro[0]->get_arguments_description() . ') at ' . round($spread, 2) . 'x';
+				}
+				if(!empty($spread_text))
+				{
+					$summary[] = 'The results with the greatest spread from best to worst included: ' . PHP_EOL . PHP_EOL . implode(PHP_EOL . '', $spread_text) . '.';
+				}
+			}
+		}
+
+		return $summary;
+	}
+	public static function generate_wins_losses_results($result_file, $only_wins = false)
+	{
+		$results = null;
+		$result_file_identifiers_count = $result_file->get_system_count();
+		$wins = array();
+		$losses = array();
+		$tests_counted = 0;
+
+		$possible_evaluate_result_count = 0;
+		foreach($result_file->get_result_objects() as $result)
+		{
+			if($result->test_profile->get_identifier() == null)
+			{
+				continue;
+			}
+			$possible_evaluate_result_count++;
+			if($result->test_result_buffer->get_count() < 2 || $result->test_result_buffer->get_count() < floor($result_file_identifiers_count / 2))
+			{
+				continue;
+			}
+
+			$tests_counted++;
+			$winner = $result->get_result_first();
+			$loser = $result->get_result_last();
+
+			if(!isset($wins[$winner]))
+			{
+				$wins[$winner] = 1;
+			}
+			else
+			{
+				$wins[$winner]++;
+			}
+
+			if(!isset($losses[$loser]))
+			{
+				$losses[$loser] = 1;
+			}
+			else
+			{
+				$losses[$loser]++;
+			}
+		}
+
+		if(empty($wins) || empty($losses))
+		{
+			return;
+		}
+
+		arsort($wins);
+		arsort($losses);
+
+		$test_profile = new pts_test_profile();
+		$test_result = new pts_test_result($test_profile);
+		$test_result->test_profile->set_test_title('Number Of First Place Finishes');
+		$test_result->test_profile->set_identifier(null);
+		$test_result->test_profile->set_version(null);
+		$test_result->test_profile->set_result_proportion(null);
+		$test_result->test_profile->set_display_format('PIE_CHART');
+		$test_result->test_profile->set_result_scale('Wins');
+		///$test_result->test_profile->set_result_proportion('HIB');
+		$test_result->set_used_arguments_description('Wins - ' . $tests_counted . ' Tests');
+		//$test_result->set_used_arguments('Geometric-Mean');
+		$test_result->test_result_buffer = new pts_test_result_buffer();
+		$test_result->dynamically_generated = true;
+
+		foreach($wins as $identifier => $count)
+		{
+			$test_result->test_result_buffer->add_test_result($identifier, $count);
+		}
+
+		if($only_wins)
+		{
+			return count($wins) > 1 ? $test_result : null;
+		}
+		if(count($wins) > 1)
+		{
+			$results[] = $test_result;
+		}
+
+		$test_profile = new pts_test_profile();
+		$test_result = new pts_test_result($test_profile);
+		$test_result->test_profile->set_test_title('Number Of Last Place Finishes');
+		$test_result->test_profile->set_identifier(null);
+		$test_result->test_profile->set_version(null);
+		$test_result->test_profile->set_result_proportion(null);
+		$test_result->test_profile->set_display_format('PIE_CHART');
+		$test_result->test_profile->set_result_scale('Losses');
+		///$test_result->test_profile->set_result_proportion('HIB');
+		$test_result->set_used_arguments_description('Losses - ' . $tests_counted . ' Tests');
+		//$test_result->set_used_arguments('Geometric-Mean');
+		$test_result->test_result_buffer = new pts_test_result_buffer();
+		$test_result->dynamically_generated = true;
+
+		foreach($losses as $identifier => $count)
+		{
+			$test_result->test_result_buffer->add_test_result($identifier, $count);
+		}
+
+		if(count($losses) > 1)
+		{
+			$results[] = $test_result;
+		}
+
+		return $results;
+	}
+	public static function generate_geometric_mean_result_for_suites_in_result_file(&$result_file, $allow_partial = true, $upper_limit = 0)
+	{
+		if($result_file->get_system_count() < 2)
+		{
+			return array();
+		}
+
+		$geo_mean_results = array();
+		$suites_in_result_file = pts_test_suites::suites_in_result_file($result_file, $allow_partial, $upper_limit);
+		if(empty($suites_in_result_file))
+		{
+			return array();
+		}
+
+		foreach($suites_in_result_file as $suite_identifier => $contained_tests)
+		{
+			$geo_mean = pts_result_file_analyzer::generate_geometric_mean_result($result_file, true, $contained_tests);
+			if($geo_mean)
+			{
+				$suite = new pts_test_suite($suite_identifier);
+				$geo_mean->test_profile->set_test_title('Geometric Mean Of ' . $suite->get_title() . ' Tests');
+				$geo_mean->normalize_buffer_values();
+				$geo_mean->set_annotation('Geometric mean based upon tests: ' . implode(', ', $contained_tests));
+				$geo_mean_results[] = $geo_mean;
+			}
+		}
+
+		return $geo_mean_results;
+	}
+	public static function generate_geometric_mean_result($result_file, $do_sort = false, $limit_to = false)
+	{
+		$results = array();
+		$system_count = $result_file->get_system_count();
+		foreach($result_file->get_result_objects() as $result)
+		{
+			if($result->test_profile->get_identifier() == null || $result->test_profile->get_display_format() != 'BAR_GRAPH' || $system_count > $result->test_result_buffer->get_count())
+			{
+				// Skip data where it's not a proper test, not a singular data value, or not all systems ran within the result file
+				continue;
+			}
+			if($limit_to)
+			{
+				if(is_array($limit_to))
+				{
+					if(!in_array($result->test_profile->get_identifier(), $limit_to) && !in_array($result->test_profile->get_identifier(false), $limit_to))
+					{
+						continue;
+					}
+				}
+				else
+				{
+					if($limit_to != $result->test_profile->get_identifier())
+					{
+						continue;
+					}
+				}
+			}
+
+			foreach($result->test_result_buffer->get_buffer_items() as $buffer_item)
+			{
+				$r = $buffer_item->get_result_value();
+				if(!is_numeric($r) || $r == 0)
+				{
+					continue;
+				}
+				if($result->test_profile->get_result_proportion() == 'LIB')
+				{
+					// convert to HIB
+					$r = (1 / $r) * 100;
+				}
+
+				$ri = $buffer_item->get_result_identifier();
+
+				if(!isset($results[$ri]))
+				{
+					$results[$ri] = array();
+				}
+				$results[$ri][] = $r;
+			}
+		}
+
+		foreach($results as $identifier => $values)
+		{
+			if(count($values) < 2)
+			{
+				// If small result file with not a lot of data, don't bother showing...
+				unset($results[$identifier]);
+			}
+		}
+
+		if(!empty($results))
+		{
+			$test_profile = new pts_test_profile();
+			$test_result = new pts_test_result($test_profile);
+			$test_result->test_profile->set_test_title('Geometric Mean Of ' . ($limit_to && !is_array($limit_to) ? $limit_to : 'All Test Results'));
+			$test_result->test_profile->set_identifier(null);
+			$test_result->test_profile->set_version(null);
+			$test_result->test_profile->set_result_proportion(null);
+			$test_result->test_profile->set_display_format('BAR_GRAPH');
+			$test_result->test_profile->set_result_scale('Geometric Mean');
+			$test_result->test_profile->set_result_proportion('HIB');
+			$test_result->set_used_arguments_description('Result Composite');
+			$test_result->set_used_arguments('Geometric-Mean');
+			$test_result->test_result_buffer = new pts_test_result_buffer();
+			foreach($results as $identifier => $values)
+			{
+				$values = pts_math::geometric_mean($values);
+				$test_result->test_result_buffer->add_test_result($identifier, pts_math::set_precision($values, 3));
+			}
+
+			if((!$result_file->is_multi_way_comparison() && !$test_result->test_result_buffer->result_identifier_differences_only_numeric()) || $do_sort)
+			{
+				$test_result->sort_results_by_performance();
+				$test_result->test_result_buffer->buffer_values_reverse();
+			}
+			$test_result->dynamically_generated = true;
+			return $test_result;
+		}
+
+		return false;
+	}
+	public static function generate_geometric_mean_result_per_test($result_file, $do_sort = false, $selector = null)
+	{
+		$geo_results = array();
+		$results = array();
+		$system_count = $result_file->get_system_count();
+		foreach($result_file->get_result_objects() as $result)
+		{
+			if(($selector == null && $result->test_profile->get_identifier() == null) || $result->test_profile->get_display_format() != 'BAR_GRAPH' || $system_count > $result->test_result_buffer->get_count())
+			{
+				// Skip data where it's not a proper test, not a singular data value, or not all systems ran within the result file
+				continue;
+			}
+			if($selector != null && strpos($result->get_arguments_description(), $selector) === false && strpos($result->test_profile->get_title(), $selector) === false && strpos($result->test_profile->get_result_scale(), $selector) === false)
+			{
+				continue;
+			}
+
+			foreach($result->test_result_buffer->get_buffer_items() as $buffer_item)
+			{
+				$r = $buffer_item->get_result_value();
+				if(!is_numeric($r) || $r == 0)
+				{
+					continue;
+				}
+				if($result->test_profile->get_result_proportion() == 'LIB')
+				{
+					// convert to HIB
+					$r = (1 / $r) * 100;
+				}
+
+				$ri = $buffer_item->get_result_identifier();
+
+				if(!isset($results[$result->test_profile->get_title()]))
+				{
+					$results[$result->test_profile->get_title()] = array();
+				}
+				if(!isset($results[$result->test_profile->get_title()][$ri]))
+				{
+					$results[$result->test_profile->get_title()][$ri] = array();
+				}
+				$results[$result->test_profile->get_title()][$ri][] = $r;
+			}
+		}
+
+		if(count($results) < 2)
+		{
+			return array();
+		}
+
+		foreach($results as $test => $test_results)
+		{
+			foreach($test_results as $identifier => $values)
+			{
+				if(false && count($values) < 4)
+				{
+					// If small result file with not a lot of data, don't bother showing...
+					unset($results[$test][$identifier]);
+				}
+			}
+
+			if(empty($results[$test]))
+			{
+				unset($results[$test]);
+			}
+		}
+
+		foreach($results as $test_title => $test_results)
+		{
+			$test_profile = new pts_test_profile();
+			$test_result = new pts_test_result($test_profile);
+			$test_result->test_profile->set_test_title($test_title);
+			$test_result->test_profile->set_identifier(null);
+			$test_result->test_profile->set_version(null);
+			$test_result->test_profile->set_result_proportion(null);
+			$test_result->test_profile->set_display_format('BAR_GRAPH');
+			$test_result->test_profile->set_result_scale('Geometric Mean');
+			$test_result->test_profile->set_result_proportion('HIB');
+			$test_result->set_used_arguments_description(($selector ? $selector . ' ' : null) . 'Geometric Mean');
+			$test_result->set_used_arguments('Geometric-Mean');
+			$test_result->test_result_buffer = new pts_test_result_buffer();
+			foreach($test_results as $identifier => $values)
+			{
+				$values = pts_math::geometric_mean($values);
+				$precised = pts_math::set_precision($values, 3);
+				if($values != 0 && $precised == 0)
+				{
+					// Don't use precision if it ends up rounding result too small in certain situations
+					$precised = $values;
+				}
+				$test_result->test_result_buffer->add_test_result($identifier, $precised);
+			}
+
+			if(!$result_file->is_multi_way_comparison() || $do_sort)
+			{
+				$test_result->sort_results_by_performance();
+				$test_result->test_result_buffer->buffer_values_reverse();
+			}
+			$test_result->dynamically_generated = true;
+			$geo_results[] = $test_result;
+		}
+
+		return $geo_results;
+	}
+	public static function generate_harmonic_mean_result($result_file, $do_sort = false)
+	{
+		$results = array();
+		$system_count = $result_file->get_system_count();
+		foreach($result_file->get_result_objects() as $result)
+		{
+			if($result->test_profile->get_identifier() == null || $result->test_profile->get_display_format() != 'BAR_GRAPH' || $result->test_profile->get_result_proportion() == 'LIB' || $system_count > $result->test_result_buffer->get_count())
+			{
+				// Skip data where it's not a proper test, not a singular data value, or not all systems ran within the result file, or lower is better for results
+				continue;
+			}
+			$rs = $result->test_profile->get_result_scale();
+			if(strpos($rs, '/') === false && stripos($rs, ' per ') === false && stripos($rs, 'FPS') === false && stripos($rs, 'bps') === false && stripos($rs, 'iops') === false)
+			{
+				// Harmonic mean is relevant for tests of rates, MB/s, FPS, ns/day, etc.
+				continue;
+			}
+			foreach($result->test_result_buffer->get_buffer_items() as $buffer_item)
+			{
+				$ri = $buffer_item->get_result_identifier();
+
+				if(!isset($results[$rs][$ri]))
+				{
+					$results[$rs][$ri] = array();
+				}
+				$results[$rs][$ri][] = $buffer_item->get_result_value();
+			}
+		}
+
+		foreach($results as $result_scale => $group)
+		{
+			foreach($group as $identifier => $values)
+			{
+				if(count($values) < 4)
+				{
+					// If small result file with not a lot of data, don't bother showing...
+					unset($results[$result_scale][$identifier]);
+				}
+			}
+		}
+
+		if(!empty($results))
+		{
+			$test_results = array();
+			foreach($results as $result_scale => $group)
+			{
+				$parsed = array();
+				foreach($group as $identifier => $values)
+				{
+					$parsed[$identifier] = pts_math::harmonic_mean($values);
+				}
+				if(empty($parsed) || count($parsed) < 2)
+				{
+					continue;
+				}
+
+				$test_profile = new pts_test_profile();
+				$test_result = new pts_test_result($test_profile);
+				$test_result->test_profile->set_test_title('Harmonic Mean Of ' . $result_scale . ' Test Results');
+				$test_result->test_profile->set_identifier(null);
+				$test_result->test_profile->set_version(null);
+				$test_result->test_profile->set_result_proportion(null);
+				$test_result->test_profile->set_display_format('BAR_GRAPH');
+				$test_result->test_profile->set_result_scale($result_scale);
+				$test_result->test_profile->set_result_proportion('HIB');
+				$test_result->set_used_arguments_description('Harmonic Mean');
+				$test_result->set_used_arguments('Harmonic-Mean - ' . $result_scale);
+				$test_result->test_result_buffer = new pts_test_result_buffer();
+				foreach($parsed as $identifier => $values)
+				{
+					$test_result->test_result_buffer->add_test_result($identifier, pts_math::set_precision($values, 3));
+				}
+				if(!$result_file->is_multi_way_comparison() || $do_sort)
+				{
+					$test_result->sort_results_by_performance();
+					$test_result->test_result_buffer->buffer_values_reverse();
+				}
+				$test_result->dynamically_generated = true;
+				$test_results[] = $test_result;
+			}
+			return $test_results;
+		}
+
+		return array();
+	}
+	public static function display_result_file_stats_pythagorean_means($result_file, $highlight_identifier = null)
+	{
+		$ret = null;
+		foreach(pts_result_file_analyzer::generate_harmonic_mean_result($result_file, true) as $harmonic_mean_result)
+		{
+			$ret .= pts_result_file_output::test_result_to_text($harmonic_mean_result, pts_client::terminal_width(), true, $highlight_identifier, true) . PHP_EOL;
+		}
+
+		$geometric_mean = pts_result_file_analyzer::generate_geometric_mean_result($result_file, true);
+		if($geometric_mean)
+		{
+			$ret .= pts_result_file_output::test_result_to_text($geometric_mean, pts_client::terminal_width(), true, $highlight_identifier, true);
+		}
+
+		if($ret != null)
+		{
+			$ret .= PHP_EOL;
+		}
+
+		return $ret;
+	}
+	public static function display_results_wins_losses($result_file, $highlight_result_identifier = null, $prepend_lines = '   ')
+	{
+		$output = null;
+		$result_file_identifiers_count = $result_file->get_system_count();
+		$wins = array();
+		$losses = array();
+		$tests_counted = 0;
+
+		$possible_evaluate_result_count = 0;
+		foreach($result_file->get_result_objects() as $result)
+		{
+			if($result->test_profile->get_identifier() == null)
+			{
+				continue;
+			}
+			$possible_evaluate_result_count++;
+			if($result->test_result_buffer->get_count() < 2 || $result->test_result_buffer->get_count() < floor($result_file_identifiers_count / 2))
+			{
+				continue;
+			}
+
+			$tests_counted++;
+			$winner = $result->get_result_first();
+			$loser = $result->get_result_last();
+
+			if(!isset($wins[$winner]))
+			{
+				$wins[$winner] = 1;
+			}
+			else
+			{
+				$wins[$winner]++;
+			}
+
+			if(!isset($losses[$loser]))
+			{
+				$losses[$loser] = 1;
+			}
+			else
+			{
+				$losses[$loser]++;
+			}
+		}
+
+		if(empty($wins) || empty($losses))
+		{
+			return;
+		}
+
+		arsort($wins);
+		arsort($losses);
+
+		$table = array();
+		$table[] = array(pts_client::cli_colored_text('WINS:', 'green', true), '', '');
+		$highlight_row = -1;
+		foreach($wins as $identifier => $count)
+		{
+			$table[] = array($identifier . ': ', $count . ' ', ' [' . pts_math::set_precision($count / $tests_counted * 100, 1) . '%]');
+
+			if($highlight_result_identifier && $highlight_result_identifier == $identifier)
+			{
+				$highlight_row = count($table) - 1;
+			}
+		}
+		$table[] = array('', '', '');
+		$table[] = array(pts_client::cli_colored_text('LOSSES: ', 'red', true), '', '');
+		$highlight_row = -1;
+		foreach($losses as $identifier => $count)
+		{
+			$table[] = array($identifier . ': ', $count, ' [' . pts_math::set_precision($count / $tests_counted * 100, 1) . '%]');
+
+			if($highlight_result_identifier && $highlight_result_identifier == $identifier)
+			{
+				$highlight_row = count($table) - 1;
+			}
+		}
+		$output .= pts_user_io::display_text_table($table, $prepend_lines, 0, 0, false, $highlight_row) . PHP_EOL;
+		$output .= $prepend_lines . pts_client::cli_colored_text('TESTS COUNTED: ', 'cyan', true) . ($tests_counted == $possible_evaluate_result_count ? $tests_counted : $tests_counted . ' of ' . $possible_evaluate_result_count) .  PHP_EOL;
+		return $output;
+	}
+	public static function display_results_baseline_two_way_compare($result_file, $drop_flat_results = false, $border_table = false, $rich_text = false, $prepend_to_lines = null)
+	{
+		$table = array(array('Test', 'Configuration', 'Relative'));
+		$color_rows = array();
+
+		foreach($result_file->get_result_objects() as $ro)
+		{
+			if($ro->test_profile->get_display_format() != 'BAR_GRAPH')
+			{
+				continue;
+			}
+			$analyze_ro = clone $ro;
+			if($drop_flat_results)
+			{
+				$analyze_ro->remove_unchanged_results(0.3);
+			}
+
+			$buffer_identifiers = $analyze_ro->test_result_buffer->get_identifiers();
+			if(count($buffer_identifiers) != 2)
+			{
+				continue;
+			}
+
+			$analyze_ro->normalize_buffer_values(pts_arrays::first_element($buffer_identifiers));
+			$result = $analyze_ro->test_result_buffer->get_value_from_identifier(pts_arrays::last_element($buffer_identifiers));
+			if(empty($result))
+			{
+				continue;
+			}
+			$result = round($result, 3);
+			if($drop_flat_results && $result == 1)
+			{
+				continue;
+			}
+			if($rich_text && ($result < 0.97 || $result > 1.03))
+			{
+				$color_rows[count($table)] = $result < 1 ? 'red' : 'green';
+			}
+			$table[] = array($analyze_ro->test_profile->get_identifier_base_name(), $analyze_ro->get_arguments_description_shortened(), $result);
+		}
+
+		$bold_row = $rich_text ? 0 : -1;
+		return count($table) < 2 ? null : PHP_EOL . pts_user_io::display_text_table($table, $prepend_to_lines, 0, 0, $border_table, $bold_row, $color_rows);
+	}
 	public static function analyze_result_file_intent(&$result_file, &$flagged_results = -1, $return_all_changed_indexes = false)
 	{
 		$identifiers = array();
@@ -101,7 +981,7 @@ class pts_result_file_analyzer
 			pts_result_file_analyzer::compact_result_table_data($data, $identifiers, true);
 			$desc = pts_result_file_analyzer::analyze_system_component_changes($data, $rows, array(
 				array('Memory', 'Graphics', 'Display Driver', 'OpenGL'),
-				array('Graphics', 'Display Driver', 'OpenGL', 'Vulkan'), array('Graphics', 'Display Driver', 'OpenGL', 'OpenCL', 'Vulkan'), array('Graphics', 'Monitor', 'Kernel', 'Display Driver', 'OpenGL'), array('Graphics', 'Monitor', 'Display Driver', 'OpenGL'), array('Graphics', 'Kernel', 'Display Driver', 'OpenGL'), array('Graphics', 'Display Driver', 'OpenGL'), array('Graphics', 'OpenGL'), array('Graphics', 'Kernel'), array('Graphics', 'Display Driver') // All potential graphics comparisons
+				array('Graphics', 'Display Driver', 'OpenGL', 'Vulkan'), array('Graphics', 'Kernel', 'Display Driver', 'OpenGL', 'Vulkan'), array('Graphics', 'Display Driver', 'OpenGL', 'OpenCL', 'Vulkan'), array('Graphics', 'Display Driver', 'OpenCL'), array('Graphics', 'Monitor', 'Kernel', 'Display Driver', 'OpenGL'), array('Graphics', 'Monitor', 'Display Driver', 'OpenGL'), array('Graphics', 'Kernel', 'Display Driver', 'OpenGL'), array('Graphics', 'Display Driver', 'OpenGL'), array('Graphics', 'OpenGL'), array('Graphics', 'Kernel'), array('Graphics', 'Display Driver') // All potential graphics comparisons
 			), $return_all_changed_indexes);
 		}
 
@@ -397,6 +1277,112 @@ class pts_result_file_analyzer
 
 			$c_index++;
 		}
+	}
+	public static function system_to_note_array(&$result_file_system, &$system_attributes)
+	{
+		$json = $result_file_system->get_json();
+		$notes_string = $result_file_system->get_notes();
+		$identifier = $result_file_system->get_identifier();
+
+		if(isset($json['kernel-parameters']) && $json['kernel-parameters'] != null)
+		{
+			$system_attributes['Kernel'][$identifier] = $json['kernel-parameters'];
+			unset($json['kernel-parameters']);
+		}
+		if(isset($json['environment-variables']) && $json['environment-variables'] != null)
+		{
+			$system_attributes['Environment'][$identifier] = $json['environment-variables'];
+			unset($json['environment-variables']);
+		}
+		if(isset($json['compiler-configuration']) && $json['compiler-configuration'] != null)
+		{
+			$system_attributes['Compiler'][$identifier] = $json['compiler-configuration'];
+			unset($json['compiler-configuration']);
+		}
+		if(isset($json['disk-scheduler']) && isset($json['disk-mount-options']))
+		{
+			$system_attributes['Disk'][$identifier] = $json['disk-scheduler'] . ' / ' . $json['disk-mount-options'];
+			if(isset($json['disk-details']) && !empty($json['disk-details']))
+			{
+				$system_attributes['Disk'][$identifier] .= ' / ' . $json['disk-details'];
+				unset($json['disk-details']);
+			}
+			unset($json['disk-scheduler']);
+			unset($json['disk-mount-options']);
+		}
+		if(isset($json['cpu-scaling-governor']) || isset($json['cpu-microcode']))
+		{
+			$cpu_data = array();
+
+			if(!empty($json['cpu-scaling-governor']))
+			{
+				$cpu_data[] = 'Scaling Governor: ' . $json['cpu-scaling-governor'];
+				unset($json['cpu-scaling-governor']);
+			}
+
+			if(!empty($json['cpu-microcode']))
+			{
+				$cpu_data[] = 'CPU Microcode: ' . $json['cpu-microcode'];
+				unset($json['cpu-microcode']);
+			}
+
+			$system_attributes['Processor'][$identifier] = implode(' - ', $cpu_data);
+		}
+		if(isset($json['cpu-smt']))
+		{
+			$system_attributes['Processor'][$identifier] = 'SMT (threads per core): ' . $json['cpu-smt'];
+			unset($json['cpu-smt']);
+		}
+		if(isset($json['graphics-2d-acceleration']) || isset($json['graphics-aa']) || isset($json['graphics-af']))
+		{
+			$report = array();
+			foreach(array('graphics-2d-acceleration', 'graphics-aa', 'graphics-af') as $check)
+			{
+				if(isset($json[$check]) && !empty($json[$check]))
+				{
+					$report[] = $json[$check];
+					unset($json[$check]);
+				}
+			}
+			$system_attributes['Graphics'][$identifier] = implode(' - ' , $report);
+		}
+		if(isset($json['graphics-compute-cores']))
+		{
+			$system_attributes['OpenCL'][$identifier] = 'GPU Compute Cores: ' . $json['graphics-compute-cores'];
+			unset($json['graphics-compute-cores']);
+		}
+		if(!empty($notes_string))
+		{
+			$system_attributes['System'][$identifier] = $notes_string;
+		}
+		if(!empty($json) && is_array($json))
+		{
+			foreach($json as $key => $value)
+			{
+				if(!empty($value))
+				{
+					$system_attributes[ucwords(str_replace(array('_', '-'), ' ', $key))][$identifier] = $value;
+				}
+				unset($json[$key]);
+			}
+		}
+	}
+	public static function system_notes_to_formatted_array(&$result_file)
+	{
+		$system_attributes = array();
+
+		foreach($result_file->get_systems() as $s)
+		{
+			pts_result_file_analyzer::system_to_note_array($s, $system_attributes);
+		}
+
+		if(isset($system_attributes['compiler']) && count($system_attributes['compiler']) == 1 && ($result_file->get_system_count() > 1 && ($intent = pts_result_file_analyzer::analyze_result_file_intent($result_file, $intent, true)) && isset($intent[0]) && is_array($intent[0]) && array_shift($intent[0]) == 'Compiler') == false)
+		{
+			// Only show compiler strings when it's meaningful (since they tend to be long strings)
+			unset($system_attributes['compiler']);
+		}
+
+		return $system_attributes;
 	}
 }
 

@@ -23,8 +23,16 @@
 			<PackageName>virtual/glut</PackageName>
 		</Package>
 		<Package>
+			<GenericName>vulkan-development</GenericName>
+			<PackageName>media-libs/vulkan-loder</PackageName>
+		</Package>
+		<Package>
 			<GenericName>openssl-development</GenericName>
 			<PackageName>dev-libs/openssl</PackageName>
+		</Package>
+		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>dev-libs/expat</PackageName>
 		</Package>
 		<Package>
 			<GenericName>cairo-development</GenericName>
@@ -64,7 +72,19 @@
 		</Package>
 		<Package>
 			<GenericName>java</GenericName>
-			<PackageName>virtual/jre</PackageName>
+			<PackageName>virtual/jdk</PackageName>
+		</Package>
+		<Package>
+			<GenericName>maven</GenericName>
+			<PackageName>dev-lang/maven-bin</PackageName>
+		</Package>
+		<Package>
+			<GenericName>maven</GenericName>
+			<PackageName>maven</PackageName>
+		</Package>
+		<Package>
+			<GenericName>nasm</GenericName>
+			<PackageName>dev-lang/nasm</PackageName>
 		</Package>
 		<Package>
 			<GenericName>portaudio-development</GenericName>
@@ -193,7 +213,7 @@
 		</Package>
 		<Package>
 			<GenericName>atlas-development</GenericName>
-			<PackageName>sci-libs/lapack-atlas</PackageName>
+			<PackageName>sci-libs/atlas</PackageName>
 		</Package>
 		<Package>
 			<GenericName>openmpi-development</GenericName>
@@ -242,7 +262,15 @@
 		</Package>
 		<Package>
 			<GenericName>opencl</GenericName>
-			<PackageName>dev-util/opencl-headers</PackageName>
+			<PackageName>virtual/opencl</PackageName>
+		</Package>
+		<Package>
+			<GenericName>meson</GenericName>
+			<PackageName>dev-util/meson</PackageName>
+		</Package>
+		<Package>
+			<GenericName>rust</GenericName>
+			<PackageName>dev-lang/rust dev-util/cargo</PackageName>
 		</Package>
 		<Package>
 			<GenericName>attr</GenericName>
@@ -275,6 +303,46 @@
 		<Package>
 			<GenericName>python-sklearn</GenericName>
 			<PackageName>sci-libs/scikits_learn</PackageName>
+		</Package>
+		<Package>
+			<GenericName>V8</GenericName>
+			<PackageName>dev-lang/v8</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libevent</GenericName>
+			<PackageName>dev-libs/libevent</PackageName>
+		</Package>
+		<Package>
+			<GenericName>ruby</GenericName>
+			<PackageName>dev-lang/ruby</PackageName>
+		</Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<PackageName>virtual/wine</PackageName>
+		</Package>
+		<Package>
+			<GenericName>mongodb</GenericName>
+			<PackageName>dev-db/mongodb</PackageName>
+		</Package>
+		<Package>
+			<GenericName>hdf5</GenericName>
+			<PackageName>sci-libs/hdf5</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libxml2</GenericName>
+			<PackageName>dev-libs/libxml2</PackageName>
+		</Package>
+		<Package>
+			<GenericName>uuid</GenericName>
+			<PackageName>sys-libs/libuuid</PackageName>
+		</Package>
+		<Package>
+			<GenericName>gflags</GenericName>
+			<PackageName>dev-cpp/gflags</PackageName>
+		</Package>
+		<Package>
+			<GenericName>snappy</GenericName>
+			<PackageName>app-arch/snappy</PackageName>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

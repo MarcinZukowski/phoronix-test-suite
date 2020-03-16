@@ -33,6 +33,10 @@
 			<PackageName>tcsh</PackageName>
 		</Package>
 		<Package>
+			<GenericName>nasm</GenericName>
+			<PackageName>nasm</PackageName>
+		</Package>
+		<Package>
 			<GenericName>libpng-development</GenericName>
 			<PackageName>libpng-devel</PackageName>
 		</Package>
@@ -42,7 +46,7 @@
 		</Package>
 		<Package>
 			<GenericName>build-utilities</GenericName>
-			<PackageName>gcc gcc-c++ autoconf make libgomp-devel automake</PackageName>
+			<PackageName>gcc autoconf make libgomp-devel automake</PackageName>
 		</Package>
 		<Package>
 			<GenericName>cairo-development</GenericName>
@@ -73,6 +77,14 @@
 			<PackageName>openjdk</PackageName>
 		</Package>
 		<Package>
+			<GenericName>maven</GenericName>
+			<PackageName>maven</PackageName>
+		</Package>
+		<Package>
+			<GenericName>meson</GenericName>
+			<PackageName>meson</PackageName>
+		</Package>
+		<Package>
 			<GenericName>portaudio-development</GenericName>
 			<PackageName>portaudio-devel</PackageName>
 		</Package>
@@ -101,6 +113,10 @@
 			<PackageName>smartmontools</PackageName>
 		</Package>
 		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>expat</PackageName>
+		</Package>
+		<Package>
 			<GenericName>zlib-development</GenericName>
 			<PackageName>zlib-devel</PackageName>
 		</Package>
@@ -114,7 +130,7 @@
 		</Package>
 		<Package>
 			<GenericName>pcre</GenericName>
-			<PackageName>libpcre</PackageName>
+			<PackageName>libpcre pcre</PackageName>
 		</Package>
 		<Package>
 			<GenericName>perl</GenericName>
@@ -247,6 +263,10 @@
                 <Package>
 			<GenericName>golang</GenericName>
 			<PackageName>go</PackageName>
+		</Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<PackageName>wine</PackageName>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

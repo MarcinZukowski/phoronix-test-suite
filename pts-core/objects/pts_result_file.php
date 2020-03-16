@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2020, Phoronix Media
+	Copyright (C) 2008 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -36,8 +36,9 @@ class pts_result_file
 	private $preset_environment_variables = null;
 	private $systems = null;
 	private $is_tracker = -1;
+	private $last_modified = null;
 
-	public function __construct($result_file, $read_only_result_objects = false)
+	public function __construct($result_file = null, $read_only_result_objects = false, $parse_only_qualified_result_objects = false)
 	{
 		$this->save_identifier = $result_file;
 		$this->extra_attributes = array();
@@ -68,6 +69,7 @@ class pts_result_file
 			$this->internal_tags = self::clean_input($xml->Generated->InternalTags);
 			$this->reference_id = self::clean_input($xml->Generated->ReferenceID);
 			$this->preset_environment_variables = self::clean_input($xml->Generated->PreSetEnvironmentVariables);
+			$this->last_modified = $xml->Generated->LastModified;
 		}
 
 		if(isset($xml->System))
@@ -83,6 +85,11 @@ class pts_result_file
 		{
 			foreach($xml->Result as $result)
 			{
+				if($parse_only_qualified_result_objects && ($result->Identifier == null || $result->Identifier->__toString() == null))
+				{
+					continue;
+				}
+
 				$test_profile = new pts_test_profile(($result->Identifier != null ? $result->Identifier->__toString() : null), null, !$read_only_result_objects);
 				$test_profile->set_test_title($result->Title->__toString());
 				$test_profile->set_version($result->AppVersion->__toString());
@@ -93,6 +100,8 @@ class pts_result_file
 				$test_result = new pts_test_result($test_profile);
 				$test_result->set_used_arguments_description($result->Description->__toString());
 				$test_result->set_used_arguments($result->Arguments->__toString());
+				$test_result->set_annotation((isset($result->Annotation) ? $result->Annotation->__toString() : null));
+				$test_result->set_parent_hash((isset($result->Parent) ? $result->Parent->__toString() : null));
 
 				$result_buffer = new pts_test_result_buffer();
 				foreach($result->Data->Entry as $entry)
@@ -106,15 +115,80 @@ class pts_result_file
 
 		unset($xml);
 	}
+	public function __clone()
+	{
+		foreach($this->result_objects as $i => $v)
+		{
+			$this->result_objects[$i] = clone $this->result_objects[$i];
+		}
+	}
 	public function get_file_location()
 	{
-		return $this->file_location;
+		if($this->file_location)
+		{
+			return $this->file_location;
+		}
+		else if($this->save_identifier)
+		{
+			return PTS_SAVE_RESULTS_PATH . $this->save_identifier . '/composite.xml';
+		}
+	}
+	public function get_system_log_dir($result_identifier = null, $dir_check = true)
+	{
+		$log_dir = dirname($this->get_file_location());
+		if(empty($log_dir) || !is_dir($log_dir))
+		{
+			return false;
+		}
+
+		$sdir = $log_dir . '/system-logs/';
+
+		if($result_identifier == null)
+		{
+			return $sdir;
+		}
+		else
+		{
+			$sdir = $sdir . pts_strings::simplify_string_for_file_handling($result_identifier) . '/';
+			return !$dir_check || is_dir($sdir) ? $sdir : false;
+		}
+	}
+	public function get_test_log_dir(&$result_object = null)
+	{
+		$log_dir = dirname($this->get_file_location());
+		if(empty($log_dir) || !is_dir($log_dir))
+		{
+			return false;
+		}
+
+		return $log_dir . '/test-logs/' . ($result_object != null ? $result_object->get_comparison_hash(true, false) . '/' : null);
+	}
+	public function get_test_installation_log_dir()
+	{
+		$log_dir = dirname($this->get_file_location());
+		if(empty($log_dir) || !is_dir($log_dir))
+		{
+			return false;
+		}
+
+		return $log_dir . '/installation-logs/';
+	}
+	public function save()
+	{
+		if($this->get_file_location() && is_file($this->get_file_location()))
+		{
+			return file_put_contents($this->get_file_location(), $this->get_xml());
+		}
+	}
+	public function get_last_modified()
+	{
+		return $this->last_modified;
 	}
 	public function validate()
 	{
 		$dom = new DOMDocument();
 		$dom->loadXML($this->get_xml());
-		return $dom->schemaValidate(PTS_OPENBENCHMARKING_PATH . 'schemas/result-file.xsd');
+		return $dom->schemaValidate(pts_openbenchmarking::openbenchmarking_standards_path() . 'schemas/result-file.xsd');
 	}
 	public function __toString()
 	{
@@ -130,10 +204,6 @@ class pts_result_file
 		{
 			return strip_tags($value);
 		}
-	}
-	public static function is_test_result_file($identifier)
-	{
-		return is_file(PTS_SAVE_RESULTS_PATH . $identifier . '/composite.xml');
 	}
 	public function default_result_folder_path()
 	{
@@ -192,10 +262,21 @@ class pts_result_file
 		}
 		return $ids;
 	}
+	public function is_system_identifier_in_result_file($identifier)
+	{
+		foreach($this->get_systems() as $s)
+		{
+			if($s->get_identifier() == $identifier)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
 	public function get_system_count()
 	{
-		// XXX this is deprecated
-		return count($this->get_systems());
+		return count($this->systems);
 	}
 	public function set_title($new_title)
 	{
@@ -266,6 +347,18 @@ class pts_result_file
 	public function get_test_count()
 	{
 		return count($this->get_result_objects());
+	}
+	public function get_qualified_test_count()
+	{
+		$q_count = 0;
+		foreach($this->get_result_objects() as $ro)
+		{
+			if($ro->test_profile->get_identifier() != null)
+			{
+				$q_count++;
+			}
+		}
+		return $q_count;
 	}
 	public function has_matching_test_and_run_identifier(&$test_result, $run_identifier_to_check)
 	{
@@ -406,7 +499,37 @@ class pts_result_file
 	{
 		$this->result_objects = $result_objects;
 	}
-	public function get_result_objects($select_indexes = -1, $read_only_objects = false)
+	public function get_result($ch)
+	{
+		return isset($this->result_objects[$ch]) ? $this->result_objects[$ch] : false;
+	}
+	public function remove_result_object_by_id($index_or_indexes)
+	{
+		$did_remove = false;
+		foreach(pts_arrays::to_array($index_or_indexes) as $index)
+		{
+			if(isset($this->result_objects[$index]))
+			{
+				unset($this->result_objects[$index]);
+				$did_remove = true;
+			}
+		}
+		return $did_remove;
+	}
+	public function update_annotation_for_result_object_by_id($index, $annotation)
+	{
+		if(isset($this->result_objects[$index]))
+		{
+			$this->result_objects[$index]->set_annotation($annotation);
+			return true;
+		}
+		return false;
+	}
+	public function get_result_object_by_hash($h)
+	{
+		return isset($this->result_objects[$h]) ? $this->result_objects[$h] : false;
+	}
+	public function get_result_objects($select_indexes = -1)
 	{
 		if($select_indexes != -1 && $select_indexes !== null)
 		{
@@ -447,15 +570,41 @@ class pts_result_file
 		$simple_xml = simplexml_load_string($file);
 		return json_encode($simple_xml);
 	}
+	public function avoid_duplicate_identifiers()
+	{
+		// avoid duplicate test identifiers
+		foreach(pts_arrays::duplicates_in_array($this->get_system_identifiers()) as $duplicate)
+		{
+			while($this->is_system_identifier_in_result_file($duplicate))
+			{
+				$i = 0;
+				do
+				{
+					$i++;
+					$new_identifier = $duplicate . ' #' . $i;
+				}
+				while($this->is_system_identifier_in_result_file($new_identifier));
+				$this->rename_run($duplicate, $new_identifier);
+			}
+		}
+	}
 	public function rename_run($from, $to)
 	{
-		if($from == null)
+		if($from == 'PREFIX')
+		{
+			foreach($this->systems as &$s)
+			{
+				$s->set_identifier($to . ': ' . $s->get_identifier());
+			}
+		}
+		else if($from == null)
 		{
 			if(count($this->systems) == 1)
 			{
 				foreach($this->systems as &$s)
 				{
 					$s->set_identifier($to);
+					break;
 				}
 			}
 		}
@@ -466,6 +615,7 @@ class pts_result_file
 				if($s->get_identifier() == $from)
 				{
 					$s->set_identifier($to);
+					break;
 				}
 			}
 		}
@@ -512,7 +662,7 @@ class pts_result_file
 			$result->test_result_buffer->remove($remove);
 		}
 	}
-	public function add_to_result_file(&$result_file)
+	public function add_to_result_file(&$result_file, $only_merge_results_already_present = false)
 	{
 		foreach($result_file->get_systems() as $s)
 		{
@@ -524,14 +674,28 @@ class pts_result_file
 
 		foreach($result_file->get_result_objects() as $result)
 		{
-			$this->add_result($result);
+			$this->add_result($result, $only_merge_results_already_present);
 		}
 	}
-	public function add_result(&$result_object)
+	public function result_hash_exists(&$result_object)
 	{
+		$ch = $result_object->get_comparison_hash(true, false);
+		return isset($this->result_objects[$ch]) && isset($this->result_objects[$ch]->test_result_buffer);
+	}
+	public function add_result(&$result_object, $only_if_result_already_present = false)
+	{
+		if($result_object == null)
+		{
+			return false;
+		}
+
 		$ch = $result_object->get_comparison_hash(true, false);
 		if(isset($this->result_objects[$ch]) && isset($this->result_objects[$ch]->test_result_buffer))
 		{
+			if($result_object->get_annotation() != null)
+			{
+				$this->result_objects[$ch]->append_annotation($result_object->get_annotation());
+			}
 			foreach($result_object->test_result_buffer->get_buffer_items() as $bi)
 			{
 				if($bi->get_result_value() === null)
@@ -542,10 +706,17 @@ class pts_result_file
 				$this->result_objects[$ch]->test_result_buffer->add_buffer_item($bi);
 			}
 		}
-		else
+		else if($only_if_result_already_present == false)
 		{
 			$this->result_objects[$ch] = $result_object;
 		}
+
+		return $ch;
+	}
+	public function add_result_return_object(&$result_object, $only_if_result_already_present = false)
+	{
+		$ch = $this->add_result($result_object, $only_if_result_already_present);
+		return isset($this->result_objects[$ch]) ? $this->result_objects[$ch] : false;
 	}
 	public function get_xml($to = null, $force_nice_formatting = false)
 	{
@@ -596,6 +767,8 @@ class pts_result_file
 			$xml_writer->addXmlNode('PhoronixTestSuite/Result/Scale', $result_object->test_profile->get_result_scale());
 			$xml_writer->addXmlNode('PhoronixTestSuite/Result/Proportion', $result_object->test_profile->get_result_proportion());
 			$xml_writer->addXmlNode('PhoronixTestSuite/Result/DisplayFormat', $result_object->test_profile->get_display_format());
+			$xml_writer->addXmlNodeWNE('PhoronixTestSuite/Result/Annotation', $result_object->get_annotation());
+			$xml_writer->addXmlNodeWNE('PhoronixTestSuite/Result/Parent', $result_object->get_parent_hash());
 
 			foreach($buffer_items as $i => &$buffer_item)
 			{
@@ -614,7 +787,7 @@ class pts_result_file
 
 		return $to == null ? $xml_writer->getXML() : $xml_writer->saveXMLFile($to);
 	}
-	public function merge($result_merges_to_combine, $pass_attributes = 0)
+	public function merge($result_merges_to_combine, $pass_attributes = 0, $add_prefix = null, $merge_meta = false)
 	{
 		if(!is_array($result_merges_to_combine) || empty($result_merges_to_combine))
 		{
@@ -650,7 +823,11 @@ class pts_result_file
 		{
 			$result_file = new pts_result_file($merge_select->get_result_file(), true);
 
-			if($merge_select->get_rename_identifier())
+			if($add_prefix)
+			{
+				$result_file->rename_run('PREFIX', $add_prefix);
+			}
+			else if($merge_select->get_rename_identifier())
 			{
 				$result_file->rename_run(null, $merge_select->get_rename_identifier());
 			}
@@ -666,8 +843,86 @@ class pts_result_file
 			}
 
 			$this->add_to_result_file($result_file);
+
+			if($merge_meta)
+			{
+				$this->set_title($this->get_title() . ', ' . $result_file->get_title());
+				$this->set_description($this->get_description() . PHP_EOL . PHP_EOL . $result_file->get_title() . ': ' . $result_file->get_description());
+			}
 			unset($result_file);
 		}
+	}
+	public function contains_system_hardware($search)
+	{
+		foreach($this->get_system_hardware() as $h)
+		{
+			if(stripos($h, $search) !== false)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	public function contains_system_software($search)
+	{
+		foreach($this->get_system_software() as $s)
+		{
+			if(stripos($s, $search) !== false)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	public function contains_test($search)
+	{
+		foreach($this->get_contained_test_profiles() as $test_profile)
+		{
+			if(stripos($test_profile->get_identifier(), $search) !== false || stripos($test_profile->get_title(), $search) !== false)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	public function sort_result_object_order_by_spread($asc = false)
+	{
+		uasort($this->result_objects, array('pts_result_file', 'result_spread_comparison'));
+
+		if($asc == false)
+		{
+			$this->result_objects = array_reverse($this->result_objects, true);
+		}
+	}
+	public static function result_spread_comparison($a, $b)
+	{
+		return strcmp($a->get_spread(), $b->get_spread());
+	}
+	public function sort_result_object_order_by_title($asc = true)
+	{
+		uasort($this->result_objects, array('pts_result_file', 'result_title_comparison'));
+
+		if($asc == false)
+		{
+			$this->result_objects = array_reverse($this->result_objects, true);
+		}
+	}
+	public static function result_title_comparison($a, $b)
+	{
+		return strcmp(strtolower($a->test_profile->get_title()) . ' ' . $a->test_profile->get_app_version(), strtolower($b->test_profile->get_title()) . ' ' . $b->test_profile->get_app_version());
+	}
+	public function sort_result_object_order_by_result_scale($asc = true)
+	{
+		uasort($this->result_objects, array('pts_result_file', 'result_scale_comparison'));
+
+		if($asc == false)
+		{
+			$this->result_objects = array_reverse($this->result_objects, true);
+		}
+	}
+	public static function result_scale_comparison($a, $b)
+	{
+		return strcmp($a->test_profile->get_result_proportion() . ' ' . strtolower($a->test_profile->get_result_scale()) . ' ' . $a->test_profile->get_identifier(), $b->test_profile->get_result_proportion() . ' ' . strtolower($b->test_profile->get_result_scale()) . ' ' . $a->test_profile->get_identifier());
 	}
 }
 

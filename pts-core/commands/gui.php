@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2012 - 2015, Phoronix Media
-	Copyright (C) 2012 - 2015, Michael Larabel
+	Copyright (C) 2012 - 2019, Phoronix Media
+	Copyright (C) 2012 - 2019, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -23,7 +23,8 @@
 class gui implements pts_option_interface
 {
 	const doc_section = 'Web / GUI Support';
-	const doc_description = 'Launch the Phoronix Test Suite HTML5 web user-interface in the local GUI mode (no remote web support) and attempt to auto-launch the web-browser. THIS FEATURE IS CURRENTLY EXPERIMENTAL AND NO LONGER ACTIVE DEVELOPMENT. See Phoronix Test Suite Phoromatic as an alternative web UI approach.';
+	const doc_description = 'Launch the Phoronix Test Suite HTML5 web user-interface in the local GUI mode (no remote web support) and attempt to auto-launch the web-browser. THIS FEATURE IS CURRENTLY EXPERIMENTAL AND NO LONGER IN ACTIVE DEVELOPMENT. See Phoronix Test Suite Phoromatic as an alternative web UI approach.';
+		const doc_skip = true;
 
 	public static function command_aliases()
 	{
@@ -38,6 +39,10 @@ class gui implements pts_option_interface
 			echo 'Running an unsupported PHP version. PHP 5.4+ is required to use this feature.' . PHP_EOL . PHP_EOL;
 			return false;
 		}
+
+		echo pts_client::cli_just_bold(PHP_EOL . 'THE PHORONIX TEST SUITE WEB GUI IS CURRENTLY DEPRECATED AND UNMAINTAINED. NO FUTURE IMPROVEMENTS TO THIS GUI ARE PLANNED AT THIS TIME UNLESS THERE IS ENTERPRISE SUPPORT INTEREST.' . PHP_EOL . PHP_EOL . 'THOSE WANTING TO MAKE USE OF A PHORONIX TEST SUITE USER-INTERFACE ARE ENCOURAGED TO USE THE PHOROMATIC [https://www.phoromatic.com/] COMPONENT OF THE PHORONIX TEST SUITE. THERE IS ALSO `phoronix-test-suite interactive` and `phoronix-test-suite-shell` FOR A SELF-GUIDED PHORONIX TEST SUITE EXPERIENCE.' . PHP_EOL . PHP_EOL);
+		echo 'Continuing in 10 seconds...' . PHP_EOL;
+		sleep(10);
 
 		$web_port = 0;
 		$blocked_ports = array(2049, 3659, 4045, 6000);

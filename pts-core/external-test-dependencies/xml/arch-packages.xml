@@ -7,11 +7,6 @@
 			<PackageManager>pacman</PackageManager>
 		</Information>
 		<Package>
-			<GenericName>common-dependencies</GenericName>
-			<PackageName>mesa-demos</PackageName>
-			<FileCheck>glxinfo</FileCheck>
-		</Package>
-		<Package>
 			<GenericName>gtk-development</GenericName>
 			<PackageName>gtk2</PackageName>
 		</Package>
@@ -28,12 +23,28 @@
 			<PackageName>freeglut</PackageName>
 		</Package>
 		<Package>
+			<GenericName>vulkan-development</GenericName>
+			<PackageName>vulkan-icd-loader</PackageName>
+		</Package>
+		<Package>
 			<GenericName>pcre</GenericName>
 			<PackageName>pcre</PackageName>
 		</Package>
 		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>expat</PackageName>
+		</Package>
+		<Package>
+			<GenericName>nasm</GenericName>
+			<PackageName>nasm</PackageName>
+		</Package>
+		<Package>
 			<GenericName>libpng-development</GenericName>
 			<PackageName>libpng</PackageName>
+		</Package>
+		<Package>
+			<GenericName>rust</GenericName>
+			<PackageName>rust</PackageName>
 		</Package>
 		<Package>
 			<GenericName>tiff</GenericName>
@@ -70,7 +81,11 @@
 		</Package>
 		<Package>
 			<GenericName>java</GenericName>
-			<PackageName>openjdk6</PackageName>
+			<PackageName>jdk11-openjdk</PackageName>
+		</Package>
+		<Package>
+			<GenericName>maven</GenericName>
+			<PackageName>maven</PackageName>
 		</Package>
 		<Package>
 			<GenericName>portaudio-development</GenericName>
@@ -90,7 +105,7 @@
 		</Package>
 		<Package>
 			<GenericName>zlib-development</GenericName>
-			<PackageName>zlib1</PackageName>
+			<PackageName>zlib</PackageName>
 		</Package>
 		<Package>
 			<GenericName>jpeg-development</GenericName>
@@ -99,6 +114,10 @@
 		<Package>
 			<GenericName>bc</GenericName>
 			<PackageName>bc</PackageName>
+		</Package>
+		<Package>
+			<GenericName>freeimage</GenericName>
+			<PackageName>freeimage</PackageName>
 		</Package>
 		<Package>
 			<GenericName>perl</GenericName>
@@ -128,6 +147,10 @@
 		<Package>
 			<GenericName>qt4-development</GenericName>
 			<PackageName>qt4</PackageName>
+		</Package>
+		<Package>
+			<GenericName>qt5-development</GenericName>
+			<PackageName>qt5-base qt5-examples</PackageName>
 		</Package>
 		<Package>
 			<GenericName>autoconf</GenericName>
@@ -164,8 +187,8 @@
 		</Package>
 		<Package>
 			<GenericName>common-dependencies</GenericName>
-			<PackageName>unzip</PackageName>
-			<FileCheck>unzip</FileCheck>
+			<PackageName>unzip mesa-demos</PackageName>
+			<FileCheck>unzip, glxinfo</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>boost-development</GenericName>
@@ -184,12 +207,17 @@
 			<PackageName>tcl</PackageName>
 		</Package>
 		<Package>
+			<GenericName>meson</GenericName>
+			<PackageName>meson</PackageName>
+		</Package>
+		<Package>
 			<GenericName>python</GenericName>
-			<PackageName>python</PackageName>
+			<PackageName>python python-pip</PackageName>
+			<FileCheck>pip3</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>yasm</GenericName>
-			<PackageName>yasm</PackageName>
+			<PackageName>yasm nasm</PackageName>
 		</Package>
 		<Package>
 			<GenericName>lib3ds</GenericName>
@@ -214,6 +242,14 @@
 		<Package>
 			<GenericName>suitesparse</GenericName>
 			<PackageName>suitesparse</PackageName>
+		</Package>
+		<Package>
+			<GenericName>openmpi-development</GenericName>
+			<PackageName>openmpi</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libevent</GenericName>
+			<PackageName>libevent</PackageName>
 		</Package>
 		<Package>
 			<GenericName>dune</GenericName>
@@ -243,17 +279,65 @@
 			<GenericName>opencv</GenericName>
 			<PackageName>opencv</PackageName>
 		</Package>
-		<Package>
-                        <GenericName>perl-digest-md5</GenericName>
-                        <PackageName>perl-digest-md5-file perl6-digest-md5</PackageName>
-                </Package>
+                <Package>
+			<GenericName>golang</GenericName>
+			<PackageName>go</PackageName>
+		</Package>
 		<Package>
 			<GenericName>python-scipy</GenericName>
-			<PackageName>python2-scipy</PackageName>
+			<PackageName>python3-scipy</PackageName>
 		</Package>
 		<Package>
 			<GenericName>python-sklearn</GenericName>
-			<PackageName>python2-scikit-learn</PackageName>
+			<PackageName>python-scikit-learn</PackageName>
+		</Package>
+		<Package>
+			<GenericName>V8</GenericName>
+			<PackageName>v8</PackageName>
+		</Package>
+		<Package>
+			<GenericName>ruby</GenericName>
+			<PackageName>ruby</PackageName>
+		</Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<PackageName>wine</PackageName>
+		</Package>
+		<Package>
+			<GenericName>mongodb</GenericName>
+			<PackageName>mongodb</PackageName>
+		</Package>
+		<Package>
+			<GenericName>node-npm</GenericName>
+			<PackageName>npm</PackageName>
+		</Package>
+		<Package>
+			<GenericName>hdf5</GenericName>
+			<PackageName>hdf5</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libxml2</GenericName>
+			<PackageName>libxml2</PackageName>
+		</Package>
+		<Package>
+			<GenericName>uuid</GenericName>
+			<PackageName>uuid</PackageName>
+		</Package>
+		<Package>
+			<GenericName>clang</GenericName>
+			<PackageName>clang</PackageName>
+		</Package>
+		<Package>
+			<GenericName>gflags</GenericName>
+			<PackageName>gflags</PackageName>
+		</Package>
+		<Package>
+			<GenericName>google-benchmark</GenericName>
+			<PackageName>benchmark</PackageName>
+		</Package>
+		<Package>
+			<GenericName>snappy</GenericName>
+			<PackageName>libsnappy</PackageName>
 		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

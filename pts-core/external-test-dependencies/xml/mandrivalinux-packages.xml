@@ -4,7 +4,7 @@
 	<ExternalDependencies>
 		<Information>
 			<Name>Mandriva</Name>
-			<Aliases>Mageia, OpenMandriva</Aliases>
+			<Aliases>Mageia, OpenMandriva, OpenMandrivaLinux</Aliases>
 			<PackageManager>urpmi</PackageManager>
 		</Information>
 		<Package>
@@ -36,6 +36,14 @@
 			<PackageName>p7zip</PackageName>
 		</Package>
 		<Package>
+			<GenericName>expat</GenericName>
+			<PackageName>expat</PackageName>
+		</Package>
+		<Package>
+			<GenericName>nasm</GenericName>
+			<PackageName>nasm</PackageName>
+		</Package>
+		<Package>
 			<GenericName>csh</GenericName>
 			<PackageName>tcsh</PackageName>
 		</Package>
@@ -49,8 +57,8 @@
 		</Package>
 		<Package>
 			<GenericName>build-utilities</GenericName>
-			<PackageName>task-c-devel task-c++-devel</PackageName>
-			<FileCheck>/usr/bin/gcc, /usr/bin/bison, /usr/bin/flex</FileCheck>
+			<PackageName>clang automake autoconf bison flex</PackageName>
+			<FileCheck>/usr/bin/clang, /usr/bin/bison, /usr/bin/flex</FileCheck>
 		</Package>
 		<Package>
 			<GenericName>xorg-development</GenericName>
@@ -72,6 +80,14 @@
                         <GenericName>java</GenericName>
                         <PackageName>java</PackageName>
                 </Package>
+		<Package>
+			<GenericName>maven</GenericName>
+			<PackageName>maven</PackageName>
+		</Package>
+		<Package>
+			<GenericName>meson</GenericName>
+			<PackageName>meson</PackageName>
+		</Package>
 		<Package>
 			<GenericName>portaudio-development</GenericName>
 			<PackageName>portaudio-devel</PackageName>
@@ -251,5 +267,25 @@
                         <GenericName>perl-digest-md5</GenericName>
                         <PackageName>perl-Digest-MD5</PackageName>
                 </Package>
+		<Package>
+			<GenericName>wine</GenericName>
+			<PackageName>wine</PackageName>
+		</Package>
+		<Package>
+			<GenericName>node-npm</GenericName>
+			<PackageName>npm</PackageName>
+		</Package>
+		<Package>
+			<GenericName>hdf5</GenericName>
+			<PackageName>libhdf5-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>libxml2</GenericName>
+			<PackageName>libxml2-devel</PackageName>
+		</Package>
+		<Package>
+			<GenericName>snappy</GenericName>
+			<PackageName>snappy-devel</PackageName>
+		</Package>
 	</ExternalDependencies>
 </PhoronixTestSuite>

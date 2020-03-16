@@ -17,6 +17,8 @@
 			<p>The time to live for OpenBenchmarking.org index caches. This is an integer representing the number of days before an index cache should be automatically refreshed from OpenBenchmarking.org. The default value is <em>3</em> while setting the value to <em>0</em> will disable automatic refreshing of caches (caches can be manually updated at anytime using the respective command).</p>
 			<h3>AlwaysUploadSystemLogs: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/OpenBenchmarking/AlwaysUploadSystemLogs" /></span></h3>
 			<p>If this option is set to <em>TRUE</em>, the system logs (i.e. dmesg, lspci, lsusb, Xorg.0.log) will always be uploaded to OpenBenchmarking.org when uploading your test results. Otherwise the user is prompted whether to attach the system logs with their results.</p>
+			<h3>AllowResultUploadsToOpenBenchmarking: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/OpenBenchmarking/AllowResultUploadsToOpenBenchmarking" /></span></h3>
+			<p>This option defines whether to allow/support result uploads to OpenBenchmarking.org. If set to <em>FALSE</em>, the user will not be prompted to allow uploading of test results to the public site.</p>
 
 			<h1>General Options</h1>
 			<h3>DefaultBrowser: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/General/DefaultBrowser" /></span></h3>
@@ -29,7 +31,7 @@
 			<p>This option can be used to specify the IP address(es) and port(s) of any Phoromatic Servers you wish to connect to for obtaining cached data, connecting to Phoromatic as a client test system, etc. The Phoronix Test Suite will attempt zero-conf network discovery but if that fails you can add the <em>IP:port</em> (the Phoromatic Server's HTTP port) to this element for targeted probing by the Phoronix Test Suite. Multiple Phoromatic Servers can be added if delimited by a comma; e.g. <em>IP:port,IP:port, IP:port</em>.</p>
 
 			<h1>Modules Options</h1>
-			<h3>LoadModules: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/Modules/LoadModules" /></span></h3>
+			<h3>AutoLoadModules: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/Modules/AutoLoadModules" /></span></h3>
 			<p>This tag contains a string of the names of the Phoronix Test Suite modules to load by default when running the Phoronix Test Suite. Multiple modules can be listed when delimited by a comma. Modules that load via setting an environment variable can also be specified here (i.e. <em>FORCE_AA=8</em> as an option in this string to load the <em>graphics_override</em> module with the 8x forced anti-aliasing). The default value is <em>toggle_screensaver, update_checker</em>.</p>
 
 			<h1>Installation Options</h1>
@@ -61,6 +63,10 @@
 			<p>This option sets the directory where test results will be saved by the Phoronix Test Suite. The full path to the directory on the local file-system should be specified, though <em>~</em> is a valid character for denoting the user's home directory. The default value is <em>~/.phoronix-test-suite/test-results/</em>.</p>
 			<h3>AlwaysUploadResultsToOpenBenchmarking: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/Testing/AlwaysUploadResultsToOpenBenchmarking" /></span></h3>
 			<p>This option defines whether test results should always be uploaded to OpenBenchmarking.org upon their completion. If this value is set to <em>FALSE</em>, the user will be prompted each time whether the results should be uploaded to OpenBenchmarking.org, unless running in batch mode where the value is pre-defined. The default value is <em>FALSE</em>.</p>
+			<h3>AutoSortRunQueue: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/Testing/AutoSortRunQueue" /></span></h3>
+			<p>This option defines whether the Phoronix Test Suite should sort the queue of tests to run based upon their title and category of tests. If <em>FALSE</em>, the run queue won't be sorted and they will be run in the order they were added.</p>
+			<h3>ShowPostRunStatistics: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/Testing/ShowPostRunStatistics" /></span></h3>
+			<p>If <em>TRUE</em>, the Phoronix Test Suite will show various test run statistics / comparison data based upon the test results / result file being tested after the testing has finished.</p>
 
 			<h1>TestResultValidation Options</h1>
 			<h3>DynamicRunCount: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/TestResultValidation/DynamicRunCount" /></span></h3>
@@ -71,6 +77,18 @@
 			<p>This option defines the overall standard deviation threshold (as a percent) for the Phoronix Test Suite to dynamically increase the run count of a test if this limit is exceeded. The default value is <em>3.50</em>.</p>
 			<h3>ExportResultsTo: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/TestResultValidation/ExportResultsTo" /></span></h3>
 			<p>This option can specify a file (either the absolute path or relative if contained within <em>~/.phoronix-test-suite/</em> where a set of test results will be passed as the first argument as a string with each of the test results being delimited by a colon. If the executed script returns an exit status of <em>0</em> the results are considered valid, if the script returns an exit status of <em>1</em> the Phoronix Test Suite will request the test be run again.</p>
+
+			<h1>ResultViewer Options</h1>
+			<h3>WebPort: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/ResultViewer/WebPort" /></span></h3>
+			<p>The default HTTP web port to use for launching the web-based result viewer. If the value is set to <em>RANDOM</em>, a random open web port will be used.</p>
+			<h3>LimitAccessToLocalHost: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/ResultViewer/LimitAccessToLocalHost" /></span></h3>
+			<p>If this value is set to <em>TRUE</em> (default), the web-based result viewer is only accessible by the local host. If the value is <em>FALSE</em>, anyone with access to the IP/port can access the result viewer.</p>
+			<h3>AccessKey: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/ResultViewer/AccessKey" /></span></h3>
+			<p>An access key / password can be optionally supplied as a basic precaution particularly for web-accessible result viewers that aren't limited to the local host. Set the string value here of the desired key/password that the user will be prompted to enter when trying to access the result viewer.</p>
+			<h3>AllowSavingResultChanges: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/ResultViewer/AllowSavingResultChanges" /></span></h3>
+			<p>This allows saving result file changes (notes, modifying result files, etc) of result files from the web-based result viewer. Besides needing to be set to <em>TRUE</em>, the result file directory must also be write-enabled.</p>
+			<h3>AllowDeletingResults: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/ResultViewer/AllowDeletingResults" /></span></h3>
+			<p>This option is similar to <em>AllowSavingResultChanges</em> but controls the behavior of whether results can be permanently removed. Besides needing to be set to <em>TRUE</em>, the result file directory must also be write-enabled.</p>
 
 			<h1>Batch Mode Options</h1>
 			<p>The batch mode options are only used when using either the <em>batch-run</em> or <em>batch-benchmark</em> options with the Phoronix Test Suite. This mode is designed to fully automate the operation of the Phoronix Test Suite except for areas where the user would like to be prompted. To configure the batch mode options, it is recommended to run <em>phoronix-test-suite batch-setup</em> instead of modifying these values by hand.</p>
@@ -108,10 +126,12 @@
 			<p>The default port to use when running a WebSocket server. If no port is assigned or <em>RANDOM</em> is set, a random port will be chosen.</p>
 			<h3>AdvertiseServiceZeroConf: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/Server/AdvertiseServiceZeroConf" /></span></h3>
 			<p>If this option is set to <em>TRUE</em> when starting a Phoromatic Server instance, the software will attempt to broadcast its service using zeroconf networking (Avahi on Linux assuming <em>avahi-publish</em> is present).</p>
+			<h3>AdvertiseServiceOpenBenchmarkRelay: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/Server/AdvertiseServiceOpenBenchmarkRelay" /></span></h3>
+			<p>If this option is set to <em>TRUE</em> when starting a Phoromatic Server instance, the software will broadcast the local IP/port of the server to a private OpenBenchmarking.org service so that if any other user on the local IP block from the same global IP address is in search of a Phoromatic Server, the IP address will be relayed. This is an alternative or complementary to the zero-conf/Avahi option above to help systems running the Phoronix Test Suite client on a LAN discover a Phoromatic Server for easy setup and/or download cache support for faster test setup/installation.</p>
 			<h3>PhoromaticStorage: <span style="color: #CC0000;"><xsl:value-of select="PhoronixTestSuite/Options/Server/PhoromaticStorage" /></span></h3>
 			<p>The location for the Phoromatic Server to store test results of connected systems, account information, etc. The default location is <em>~/.phoronix-test-suite/phoromatic/</em>.</p>
 		</div>
-		<div style="text-align: center; font-size: 12px;">Copyright &#xA9; 2008 - 2014 by <a href="http://www.phoronix-media.com/" style="text-decoration: none; color: #000;">Phoronix Media</a>.</div>
+		<div style="text-align: center; font-size: 12px;">Copyright &#xA9; 2008 - 2019 by <a href="http://www.phoronix-media.com/" style="text-decoration: none; color: #000;">Phoronix Media</a>.</div>
 	</body>
 </html>
 </xsl:template>

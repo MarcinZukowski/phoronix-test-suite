@@ -27,17 +27,17 @@ class debug_render_test implements pts_option_interface
 
 	public static function run($r)
 	{
-		$render_dir = pts_client::temporary_directory() . '/pts-render-test-310815/';
-		if(!is_file($render_dir . 'mega-render-test.tar.bz2'))
+		$render_dir = pts_client::temporary_directory() . '/pts-render-test-20171112/';
+		if(!is_file($render_dir . 'mega-render-test-20171112.tar.xz'))
 		{
 			pts_file_io::mkdir($render_dir);
-			pts_network::download_file('http://linuxbenchmarking.com/misc/mega-render-test-310815.tar.bz2', $render_dir . 'mega-render-test.tar.bz2');
-			pts_compression::archive_extract($render_dir . 'mega-render-test.tar.bz2');
+			pts_network::download_file('http://linuxbenchmarking.com/misc/mega-render-test-20171112.tar.xz', $render_dir . 'mega-render-test-20171112.tar.xz');
 		}
+		pts_compression::archive_extract($render_dir . 'mega-render-test-20171112.tar.xz');
 
 		if(!defined('PATH_TO_EXPORTED_PHOROMATIC_DATA'))
 		{
-			define('PATH_TO_EXPORTED_PHOROMATIC_DATA', $render_dir . 'mega-render-test-310815/');
+			define('PATH_TO_EXPORTED_PHOROMATIC_DATA', $render_dir . 'mega-render-test-20171112/');
 		}
 
 		error_reporting(E_ALL);
@@ -106,7 +106,7 @@ class debug_render_test implements pts_option_interface
 		{
 			echo PHP_EOL . 'LOCAL RENDER TEST TIME' . PHP_EOL;
 			$extra_graph_attributes = null;
-			foreach(pts_client::saved_test_results() as $saved_result)
+			foreach(pts_results::saved_test_results() as $saved_result)
 			{
 				$save_to_dir = pts_client::setup_test_result_directory($saved_result);
 				$generated_graphs = pts_client::generate_result_file_graphs($saved_result, $save_to_dir, $extra_graph_attributes);

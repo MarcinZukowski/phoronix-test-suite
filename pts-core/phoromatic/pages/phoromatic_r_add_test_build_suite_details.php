@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2014 - 2016, Phoronix Media
-	Copyright (C) 2014 - 2016, Michael Larabel
+	Copyright (C) 2014 - 2018, Phoronix Media
+	Copyright (C) 2014 - 2018, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -46,7 +46,7 @@ class phoromatic_r_add_test_build_suite_details implements pts_webui_interface
 		echo '<p align="right"><a onclick="javascript:phoromatic_remove_from_suite_list(\'' . $tid  . '\');">Remove Test</a></p>';
 		echo '<h2>' . $name . ' [' . $test_profile->get_identifier() . '] </h2>';
 		echo '<p><em>' . $description . '</em></p>';
-		echo '<p>More information on this test can be found via <a target="_blank" href="http://openbenchmarking.org/test/' . $test_profile->get_identifier() . '">OpenBenchmarking.org</a>.</p>';
+		echo '<p>More information on this test can be found via <a href="?tests/' . $test_profile->get_identifier() . '">the test profile page</a> or <a target="_blank" href="http://openbenchmarking.org/test/' . $test_profile->get_identifier() . '">OpenBenchmarking.org</a>.</p>';
 
 		$test_options = $test_profile->get_test_option_objects();
 
@@ -73,14 +73,19 @@ class phoromatic_r_add_test_build_suite_details implements pts_webui_interface
 				}
 				else
 				{
-					echo '<input name="' . $test_prefix . $o->get_identifier() . '_selected" id="' . $test_prefix . $o->get_identifier() . '_selected" type="hidden" value="' . $o->get_name() . ': ' . $o->get_option_name(0) . '" />';
 					echo '<p><select name="' . $test_prefix . $o->get_identifier() . '" id="' . $test_prefix . $o->get_identifier() . '" onChange="phoromatic_test_select_update_selected_name(this);" onload="phoromatic_test_select_update_selected_name(this);">';
 
 					$opts = array();
+					$selected_index = 0;
 					for($j = 0; $j < $option_count; $j++)
 					{
 						$v = $o->format_option_value_from_input($o->get_option_value($j));
-						echo '<option value="' . $v . '" ' . (isset($_GET['tpa']) && strpos($_GET['tpa'], $o->get_option_name($j)) !== false ? 'selected="selected"' : null) . '>' . $o->get_option_name($j) . '</option>';
+						$selected = isset($_GET['tpa']) && strpos($_GET['tpa'], $o->get_option_name($j)) !== false;
+						if($selected)
+						{
+							$selected_index = $j;
+						}
+						echo '<option value="' . $v . '" ' . ($selected ? 'selected="selected"' : null) . '>' . $o->get_option_name($j) . '</option>';
 						$opts[] = $o->get_name() . ': ' . $o->get_option_name($j) . '::' . $v;
 					}
 					if($j > 1)
@@ -89,6 +94,7 @@ class phoromatic_r_add_test_build_suite_details implements pts_webui_interface
 					}
 
 					echo '</select></p>';
+					echo '<input name="' . $test_prefix . $o->get_identifier() . '_selected" id="' . $test_prefix . $o->get_identifier() . '_selected" type="hidden" value="' . $o->get_name() . ': ' . $o->get_option_name($selected_index) . '" />';
 				}
 			}
 		}

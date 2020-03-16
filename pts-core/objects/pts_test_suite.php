@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2008 - 2016, Phoronix Media
-	Copyright (C) 2008 - 2016, Michael Larabel
+	Copyright (C) 2008 - 2020, Phoronix Media
+	Copyright (C) 2008 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -44,40 +44,49 @@ class pts_test_suite
 		$this->test_objects = array();
 		$this->test_names = array();
 		if($identifier == null)
-			return;
-
-		if(PTS_IS_CLIENT)
 		{
-			$ob_identifier = pts_openbenchmarking::evaluate_string_to_qualifier($identifier, true, 'suite');
-
-			if($ob_identifier != false)
-			{
-				$identifier = $ob_identifier;
-			}
+			return;
 		}
-		$this->identifier = $identifier;
-
-		if(!isset($xml_file[512]) && defined('PTS_TEST_SUITE_PATH') && is_file(PTS_TEST_SUITE_PATH . $identifier . '/suite-definition.xml'))
+		else if(!isset($xml_file[384]) && defined('PTS_TEST_SUITE_PATH') && is_file(PTS_TEST_SUITE_PATH . $identifier . '/suite-definition.xml'))
 		{
 			$read = PTS_TEST_SUITE_PATH . $identifier . '/suite-definition.xml';
-		}
-		else if(substr($identifier, -4) == '.zip' && is_file($identifier))
-		{
-			$zip = new ZipArchive();
-
-			if($zip->open($identifier) === true)
-			{
-				$read = $zip->getFromName('suite-definition.xml');
-				$zip->close();
-			}
-		}
-		else if(isset(self::$temp_suite[$identifier]))
-		{
-			$read = self::$temp_suite[$identifier];
+			$this->identifier = $identifier;
 		}
 		else
 		{
-			$read = $identifier;
+			if(PTS_IS_CLIENT)
+			{
+				$ob_identifier = pts_openbenchmarking::evaluate_string_to_qualifier($identifier, true, 'suite');
+
+				if($ob_identifier != false)
+				{
+					$identifier = $ob_identifier;
+				}
+			}
+			$this->identifier = $identifier;
+
+			if(!isset($xml_file[512]) && defined('PTS_TEST_SUITE_PATH') && is_file(PTS_TEST_SUITE_PATH . $identifier . '/suite-definition.xml'))
+			{
+				$read = PTS_TEST_SUITE_PATH . $identifier . '/suite-definition.xml';
+			}
+			else if(substr($identifier, -4) == '.zip' && is_file($identifier))
+			{
+				$zip = new ZipArchive();
+
+				if($zip->open($identifier) === true)
+				{
+					$read = $zip->getFromName('suite-definition.xml');
+					$zip->close();
+				}
+			}
+			else if(isset(self::$temp_suite[$identifier]))
+			{
+				$read = self::$temp_suite[$identifier];
+			}
+			else
+			{
+				$read = $identifier;
+			}
 		}
 
 		$xml_options = LIBXML_COMPACT | LIBXML_PARSEHUGE;
@@ -94,6 +103,17 @@ class pts_test_suite
 			{
 				$xml = simplexml_load_string($read, 'SimpleXMLElement', $xml_options);
 			}
+		}
+
+		if($xml == null)
+		{
+			return;
+		}
+		// XInclude support
+		if(function_exists('dom_import_simplexml'))
+		{
+			$dom = dom_import_simplexml($xml);
+			$dom->ownerDocument->xinclude();
 		}
 
 		if(isset($xml->SuiteInformation))
@@ -207,7 +227,7 @@ class pts_test_suite
 		{
 			$dom->loadXML($this->raw_xml);
 		}
-		return $dom->schemaValidate(PTS_OPENBENCHMARKING_PATH . 'schemas/test-suite.xsd');
+		return $dom->schemaValidate(pts_openbenchmarking::openbenchmarking_standards_path() . 'schemas/test-suite.xsd');
 	}
 	protected static function clean_input($value)
 	{
@@ -222,7 +242,14 @@ class pts_test_suite
 	}
 	public static function is_suite($identifier)
 	{
-		$identifier = pts_openbenchmarking::evaluate_string_to_qualifier($identifier, true, 'suite');
+		if(is_file(PTS_TEST_SUITE_PATH . $identifier . '/suite-definition.xml'))
+		{
+			return $identifier;
+		}
+		else
+		{
+			$identifier = pts_openbenchmarking::evaluate_string_to_qualifier($identifier, true, 'suite');
+		}
 		return is_file(PTS_TEST_SUITE_PATH . $identifier . '/suite-definition.xml');
 	}
 	public function needs_updated_install()
@@ -423,6 +450,17 @@ class pts_test_suite
 
 		return $test_profiles;
 	}
+	public function get_contained_test_identifiers($bind_version = true)
+	{
+		$test_profiles = array();
+
+		foreach($this->test_objects as $result_objects)
+		{
+			$test_profiles[] = $result_objects->test_profile->get_identifier($bind_version);
+		}
+
+		return array_unique($test_profiles);
+	}
 	public function sort_contained_tests()
 	{
 		usort($this->test_objects, array($this, 'cmp_result_object_sort_title'));
@@ -433,7 +471,7 @@ class pts_test_suite
 		$b_comp = $b->test_profile->get_title();
 		return strcmp($a_comp, $b_comp);
 	}
-	public function get_xml($to = null, $force_nice_formatting = false)
+	public function get_xml($to = null, $force_nice_formatting = false, $bind_versions = true)
 	{
 		$xml_writer = new nye_XmlWriter(null, $force_nice_formatting);
 		$xml_writer->addXmlNode('PhoronixTestSuite/SuiteInformation/Title', $this->get_title());
@@ -453,8 +491,7 @@ class pts_test_suite
 			{
 				continue;
 			}
-
-			$xml_writer->addXmlNodeWNE('PhoronixTestSuite/Execute/Test', $test->test_profile->get_identifier());
+			$xml_writer->addXmlNodeWNE('PhoronixTestSuite/Execute/Test', $test->test_profile->get_identifier($bind_versions));
 			$xml_writer->addXmlNodeWNE('PhoronixTestSuite/Execute/Arguments', $test->get_arguments());
 			$xml_writer->addXmlNodeWNE('PhoronixTestSuite/Execute/Description', $test->get_arguments_description());
 			$xml_writer->addXmlNodeWNE('PhoronixTestSuite/Execute/Mode', null); // XXX wire this up!
@@ -462,9 +499,9 @@ class pts_test_suite
 		}
 		return $xml_writer->getXML();
 	}
-	public function save_xml($suite_identifier = null, $save_to = null)
+	public function save_xml($suite_identifier = null, $save_to = null, $bind_versions = true)
 	{
-		$xml = $this->get_xml();
+		$xml = $this->get_xml(null, null, $bind_versions);
 		if($suite_identifier != null)
 		{
 			$this->set_identifier($this->clean_save_name_string($suite_identifier));

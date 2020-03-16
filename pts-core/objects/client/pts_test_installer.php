@@ -3,8 +3,8 @@
 /*
 	Phoronix Test Suite
 	URLs: http://www.phoronix.com, http://www.phoronix-test-suite.com/
-	Copyright (C) 2010 - 2017, Phoronix Media
-	Copyright (C) 2010 - 2017, Michael Larabel
+	Copyright (C) 2010 - 2020, Phoronix Media
+	Copyright (C) 2010 - 2020, Michael Larabel
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -44,13 +44,32 @@ class pts_test_installer
 		$unknown_tests = array();
 		$test_profiles = pts_types::identifiers_to_test_profile_objects($items_to_install, true, true, $unknown_tests);
 
+		if($force_install == false)
+		{
+			foreach($test_profiles as $i => $tp)
+			{
+				$valid = pts_test_run_manager::test_profile_system_compatibility_check($tp, true);
+				if($valid == false)
+				{
+					unset($test_profiles[$i]);
+				}
+			}
+
+		}
+
 		// Any external dependencies?
-		pts_external_dependencies::install_dependencies($test_profiles, $no_prompts, $skip_tests_with_missing_dependencies);
+		pts_external_dependencies::install_dependencies($test_profiles, $no_prompts, $skip_tests_with_missing_dependencies, true);
 
 		// Install tests
 		if(!is_writable(pts_client::test_install_root_path()))
 		{
 			trigger_error('The test installation directory is not writable.' . PHP_EOL . 'Location: ' . pts_client::test_install_root_path(), E_USER_ERROR);
+			return false;
+		}
+		$mount_options = phodevi::read_property('disk', 'mount-options');
+		if(isset($mount_options['mount-options']) && strpos($mount_options['mount-options'], 'noexec') !== false)
+		{
+			trigger_error('The test installation directory is on a file-system mounted with the \'noexec\' mount option. Re-mount the file-system appropriately or change the Phoronix Test Suite user configuration file to point to an alternative mount point.' . PHP_EOL . 'Location: ' . pts_client::test_install_root_path(), E_USER_ERROR);
 			return false;
 		}
 
@@ -61,12 +80,6 @@ class pts_test_installer
 	}
 	public static function start_install(&$test_profiles, &$unknown_tests = null, $force_install = false, $no_prompts = false)
 	{
-		if(count($test_profiles) == 0)
-		{
-			trigger_error('No Tests Found For Installation.', E_USER_ERROR);
-			return false;
-		}
-
 		// Setup the install manager and add the tests
 		$test_install_manager = new pts_test_install_manager();
 		$install_table = array();
@@ -99,7 +112,10 @@ class pts_test_installer
 		{
 			foreach($unknown_tests as $unknown)
 			{
-				$install_table[] = array('Unknown:', $unknown);
+				if(!empty($unknown))
+				{
+					$install_table[] = array('Unknown:', $unknown);
+				}
 			}
 		}
 
@@ -172,7 +188,7 @@ class pts_test_installer
 			}
 		}
 	}
-	public static function only_download_test_files(&$test_profiles, $to_dir = null)
+	public static function only_download_test_files(&$test_profiles, $to_dir = null, $do_file_checks = true)
 	{
 		// Setup the install manager and add the tests
 		$test_install_manager = new pts_test_install_manager();
@@ -191,14 +207,14 @@ class pts_test_installer
 		}
 
 		// Let the pts_test_install_manager make some estimations, etc...
-		$test_install_manager->generate_download_file_lists();
+		$test_install_manager->generate_download_file_lists($do_file_checks);
 		$test_install_manager->check_download_caches_for_files();
 
 		// Begin the download process
 		while(($test_install_request = $test_install_manager->next_in_install_queue()) != false)
 		{
 			//pts_client::$display->test_install_start($test_install_request->test_profile->get_identifier());
-			pts_test_installer::download_test_files($test_install_request, $to_dir);
+			pts_test_installer::download_test_files($test_install_request, $to_dir, true);
 		}
 	}
 	protected static function download_test_files(&$test_install_request, $download_location = false, $no_prompts = false)
@@ -220,6 +236,8 @@ class pts_test_installer
 		pts_file_io::mkdir($download_location);
 		$module_pass = array($identifier, $test_install_request->get_download_objects());
 		pts_module_manager::module_process('__pre_test_download', $module_pass);
+		$objects_completed = 0;
+		$fail_if_no_downloads = false;
 
 		foreach($test_install_request->get_download_objects() as $download_package)
 		{
@@ -246,7 +264,8 @@ class pts_test_installer
 			{
 				case 'IN_DESTINATION_DIR':
 					pts_client::$display->test_install_download_file('FILE_FOUND', $download_package);
-					continue;
+					$objects_completed++;
+					continue 2;
 				case 'REMOTE_DOWNLOAD_CACHE':
 					$download_tries = 0;
 					do
@@ -279,7 +298,8 @@ class pts_test_installer
 
 					if(is_file($download_destination))
 					{
-						continue;
+						$objects_completed++;
+						continue 2;
 					}
 				case 'MAIN_DOWNLOAD_CACHE':
 				case 'LOCAL_DOWNLOAD_CACHE':
@@ -294,6 +314,7 @@ class pts_test_installer
 							// SymLinkFilesFromCache is disabled by default
 							pts_client::$display->test_install_download_file('LINK_FROM_CACHE', $download_package);
 							symlink($download_cache_file, $download_destination);
+							$objects_completed++;
 						}
 						else
 						{
@@ -329,12 +350,24 @@ class pts_test_installer
 
 						if(is_file($download_destination))
 						{
-							continue;
+							$objects_completed++;
+							continue 2;
 						}
 					}
 				default:
 					$package_urls = $download_package->get_download_url_array();
-
+					if(!is_file($download_destination) && empty($package_urls))
+					{
+						self::test_install_error(null, $test_install_request, $package_filename . ' must be manually placed in the Phoronix Test Suite download-cache.');
+						if($download_package->is_optional())
+						{
+							self::test_install_error(null, $test_install_request, 'This file is marked as potentially being optional.');
+						}
+						else
+						{
+							$fail_if_no_downloads = true;
+						}
+					}
 					// Download the file
 					if(!is_file($download_destination) && count($package_urls) > 0 && $package_urls[0] != null)
 					{
@@ -372,7 +405,7 @@ class pts_test_installer
 							}
 							else
 							{
-								self::test_install_error(null, $test_install_request, 'Internet support is needed and it\'s disabled or not available.');
+								self::test_install_error(null, $test_install_request, 'Internet support is needed to acquire files and it\'s disabled or not available.');
 								return false;
 							}
 
@@ -382,12 +415,19 @@ class pts_test_installer
 								if(is_file($download_destination_temp))
 								{
 									rename($download_destination_temp, $download_destination);
+									$objects_completed++;
 								}
 
 								if($download_package->get_filesize() > 0 && $download_end != $download_start)
 								{
 									pts_download_speed_manager::update_download_speed_average($download_package->get_filesize(), ($download_end - $download_start));
 								}
+							}
+							else if($download_package->is_optional())
+							{
+								self::test_install_error(null, $test_install_request, 'File failed to download, but package is optional.');
+								$objects_completed++;
+								break;
 							}
 							else
 							{
@@ -459,11 +499,11 @@ class pts_test_installer
 
 		pts_module_manager::module_process('__post_test_download', $identifier);
 
-		return true;
+		return !$fail_if_no_downloads || $objects_completed > 0;
 	}
 	public static function create_compiler_mask(&$test_install_request)
 	{
-		if(phodevi::is_bsd() || getenv('PTS_NO_COMPILER_MASK'))
+		if(getenv('PTS_NO_COMPILER_MASK'))
 		{
 			// XXX: Using the compiler-mask causes a number of tests to fail to properly install due to compiler issues with at least PC-BSD 10.0
 			return false;
@@ -482,7 +522,15 @@ class pts_test_installer
 		if($test_install_request === false || in_array('fortran-compiler', $external_dependencies))
 		{
 			// Handle Fortran for this external dependency
-			$compilers['F9X'] = array(pts_strings::first_in_string(pts_client::read_env('F9X'), ' '), pts_strings::first_in_string(pts_client::read_env('F95'), ' '), 'gfortran', 'f90', 'f95', 'fortran');
+			$compilers['F9X'] = array(pts_strings::first_in_string(pts_client::read_env('F9X'), ' '), pts_strings::first_in_string(pts_client::read_env('F95'), ' '), 'gfortran', 'f90', 'f95', 'fortran', 'gfortran9', 'gfortran8', 'gfortran6', 'gfortran6');
+		}
+		if(!pts_client::executable_in_path('python'))
+		{
+			$compilers['PY2'] = array('python2', 'python2.7', 'python2.6');
+		}
+		if(!pts_client::executable_in_path('python3'))
+		{
+			$compilers['PY3'] = array('python3.8', 'python3.7', 'python3.6', 'python3.5', 'python3.4');
 		}
 
 		if(empty($compilers))
@@ -530,7 +578,9 @@ class pts_test_installer
 			$compiler_extras = array(
 				'CC' => array('safeguard-names' => array('gcc', 'cc'), 'environment-variables' => 'CFLAGS'),
 				'CXX' => array('safeguard-names' => array('g++', 'c++'), 'environment-variables' => 'CXXFLAGS'),
-				'F9X' => array('safeguard-names' => array('gfortran', 'f95'), 'environment-variables' => 'F9XFLAGS')
+				'F9X' => array('safeguard-names' => array('gfortran', 'f95'), 'environment-variables' => 'FFLAGS'),
+				'PY2' => array('safeguard-names' => array('python'), 'environment-variables' => ''),
+				'PY3' => array('safeguard-names' => array('python3'), 'environment-variables' => '')
 				);
 
 			foreach($compilers as $compiler_type => $compiler_path)
@@ -551,9 +601,37 @@ class pts_test_installer
 				}
 				*/
 
+				// Since GCC POWER doesn't support -march=, in the compiler mask we can change it to -mcpu= before passed to the actual compiler
+				if(strpos(phodevi::read_property('system', 'kernel-architecture'), 'ppc') !== false && pts_client::executable_in_path('sed'))
+				{
+					$env_var_check .= 'COMPILER_OPTIONS=`echo "$COMPILER_OPTIONS" | sed -e "s/\-march=/-mcpu=/g"`' . PHP_EOL;
+				}
+
+				if(is_executable('/bin/bash'))
+				{
+					$shebang = '/bin/bash';
+				}
+				else if(is_executable('/usr/bin/env'))
+				{
+					$shebang = '/usr/bin/env bash';
+				}
+				else if(($sh = pts_client::executable_in_path('bash')) || ($sh = pts_client::executable_in_path('sh')))
+				{
+					$shebang = $sh;
+				}
+				else
+				{
+					return false;
+				}
+
 				// Write the main mask for the compiler
 				file_put_contents($main_compiler,
-					'#!/bin/bash' . PHP_EOL . 'COMPILER_OPTIONS="$@"' . PHP_EOL . $env_var_check . PHP_EOL . 'echo $COMPILER_OPTIONS >> ' . $mask_dir . $compiler_type . '-options-' . $compiler_name . PHP_EOL . $compiler_path . ' "$@"' . PHP_EOL);
+					'#!' . $shebang . PHP_EOL .
+					'COMPILER_OPTIONS="$@"' . PHP_EOL .
+					$env_var_check . PHP_EOL .
+					'echo $COMPILER_OPTIONS >> ' . $mask_dir . $compiler_type . '-options-' . $compiler_name . PHP_EOL .
+					$compiler_path . ' "$@"' . PHP_EOL .
+					PHP_EOL);
 
 				// Make executable
 				chmod($main_compiler, 0755);
@@ -580,6 +658,14 @@ class pts_test_installer
 				$test_install_request->compiler_mask_dir = $mask_dir;
 				// Appending the rest of the path will be done automatically within call_test_script
 				$test_install_request->special_environment_vars['PATH'] = $mask_dir;
+			}
+
+			// Additional workarounds
+
+			if(pts_client::executable_in_path('7z') == false && ($path_7za = pts_client::executable_in_path('7za')) != false)
+			{
+				// This should fix Fedora/RHEL providing 7za but not 7z even though for tests just extracting files this workaround should be fine
+				symlink($path_7za, $mask_dir . '7z');
 			}
 
 			return $mask_dir;
@@ -677,7 +763,6 @@ class pts_test_installer
 	protected static function install_test_process(&$test_install_request, $no_prompts)
 	{
 		// Install a test
-		$identifier = $test_install_request->test_profile->get_identifier();
 		$test_install_directory = $test_install_request->test_profile->get_install_dir();
 		pts_file_io::mkdir(dirname($test_install_directory));
 		pts_file_io::mkdir($test_install_directory);
@@ -706,8 +791,8 @@ class pts_test_installer
 
 			if($test_install_request->test_profile->get_file_installer() != false)
 			{
+				pts_module_manager::module_process('__pre_test_install', $test_install_request);
 				self::create_compiler_mask($test_install_request);
-				pts_module_manager::module_process('__pre_test_install', $identifier);
 				pts_client::$display->test_install_begin($test_install_request);
 
 				$pre_install_message = $test_install_request->test_profile->get_pre_install_message();
@@ -742,15 +827,25 @@ class pts_test_installer
 
 				pts_client::$display->display_interrupt_message($pre_install_message);
 				$install_time_length_start = microtime(true);
-				$install_log = pts_tests::call_test_script($test_install_request->test_profile, 'install', null, $test_install_directory, $test_install_request->special_environment_vars, false);
+				$install_log = pts_tests::call_test_script($test_install_request->test_profile, 'install', null, '"' . $test_install_directory . '"', $test_install_request->special_environment_vars, false);
 				$test_install_request->install_time_duration = microtime(true) - $install_time_length_start;
 				pts_client::$display->display_interrupt_message($post_install_message);
 
 				if(!empty($install_log))
 				{
-					file_put_contents($test_install_directory . 'install.log', $install_log);
+					file_put_contents($test_install_request->test_profile->test_installation->get_install_log_location(), $install_log);
 					pts_file_io::unlink($test_install_directory . 'install-failed.log');
 					pts_client::$display->test_install_output($install_log);
+				}
+
+				if(is_file($test_install_directory . 'install-message'))
+				{
+					// Any helpful message to convey to the user
+					$install_msg = pts_file_io::file_get_contents($test_install_directory . 'install-message');
+					if(!empty($install_msg))
+					{
+						pts_client::$display->test_install_message($install_msg);
+					}
 				}
 
 				if(is_file($test_install_directory . 'install-exit-status'))
@@ -766,11 +861,11 @@ class pts_test_installer
 						// TODO: perhaps better way to handle this than to remove pts-install.xml
 						pts_file_io::unlink($test_install_directory . 'pts-install.xml');
 
-						if(is_file($test_install_directory . 'install.log'))
+						if($test_install_request->test_profile->test_installation->has_install_log())
 						{
-							$install_log = pts_file_io::file_get_contents($test_install_directory . 'install.log');
+							$install_log = pts_file_io::file_get_contents($test_install_request->test_profile->test_installation->get_install_log_location());
 							$install_error = pts_tests::scan_for_error($install_log, $test_install_directory);
-							copy($test_install_directory . 'install.log', $test_install_directory . 'install-failed.log');
+							copy($test_install_request->test_profile->test_installation->get_install_log_location(), $test_install_directory . 'install-failed.log');
 						}
 
 						//pts_test_installer::setup_test_install_directory($test_install_request, true); // Remove installed files from the bunked installation
@@ -782,6 +877,24 @@ class pts_test_installer
 							if($test_install_request->install_error != null)
 							{
 								self::test_install_error(null, $test_install_request, 'ERROR: ' . $test_install_request->install_error);
+								$reverse_dep_look_for_files = pts_tests::scan_for_file_missing_from_error($test_install_request->install_error);
+
+								if($reverse_dep_look_for_files)
+								{
+									foreach($reverse_dep_look_for_files as $file)
+									{
+										$lib_provided_by = pts_external_dependencies::packages_that_provide($file);
+										if($lib_provided_by)
+										{
+											if(is_array($lib_provided_by))
+											{
+												$lib_provided_by = array_shift($lib_provided_by);
+											}
+											self::test_install_error(null, $test_install_request, pts_client::cli_just_italic('Installing the package \'' . $lib_provided_by . '\' might fix this error.'));
+											break;
+										}
+									}
+								}
 							}
 						}
 						pts_client::$display->test_install_error('LOG: ' . str_replace(pts_core::user_home_directory(), '~/', $test_install_directory) . 'install-failed.log' . PHP_EOL);
@@ -796,7 +909,7 @@ class pts_test_installer
 					}
 				}
 
-				pts_module_manager::module_process('__post_test_install', $identifier);
+				pts_module_manager::module_process('__post_test_install', $test_install_request);
 				$installed = true;
 
 				if(pts_config::read_bool_config('PhoronixTestSuite/Options/Installation/RemoveDownloadFiles', 'FALSE'))
@@ -815,7 +928,7 @@ class pts_test_installer
 			}
 
 			// Additional validation checks?
-			$custom_validated_output = pts_tests::call_test_script($test_install_request->test_profile, 'validate-install', PHP_EOL . 'Validating Installation...' . PHP_EOL, $test_install_directory, null, false);
+			$custom_validated_output = pts_tests::call_test_script($test_install_request->test_profile, 'validate-install', PHP_EOL . 'Validating Installation...' . PHP_EOL, '"' . $test_install_directory . '"', null, false);
 			if(!empty($custom_validated_output) && !pts_strings::string_bool($custom_validated_output))
 			{
 				$installed = false;
@@ -831,7 +944,7 @@ class pts_test_installer
 		$identifier = $test_install_request->test_profile->get_identifier();
 		pts_file_io::mkdir($test_install_request->test_profile->get_install_dir());
 
-		if($remove_old_files)
+		if($remove_old_files && $test_install_request->test_profile->do_remove_test_install_directory_on_reinstall())
 		{
 			// Remove any (old) files that were installed
 			$ignore_files = array('pts-install.xml', 'install-failed.log');
